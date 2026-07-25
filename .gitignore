@@ -2,6 +2,9 @@ node_modules/
 dist/
 .next/
 .next-old-*/
+.next-production/
+*.tsbuildinfo
+tmp/
 .env
 .env.local
 *.log

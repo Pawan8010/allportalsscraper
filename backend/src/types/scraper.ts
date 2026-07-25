@@ -1,5 +1,7 @@
 /** Raw shape of a tender as scraped off a GeM listing/detail page, before normalization. */
 export interface RawScrapedTender {
+  /** Human-readable source portal. Defaults to GeM for legacy callers. */
+  portal?: string;
   tenderId: string;
   title: string;
   organisation?: string | null;

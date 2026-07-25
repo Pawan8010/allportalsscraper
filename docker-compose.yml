@@ -1,20 +1,19 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: gem_postgres
+    container_name: rrp_tender_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: gem_user
-      POSTGRES_PASSWORD: gem_password
-      POSTGRES_DB: gem_tenders
+      POSTGRES_USER: ${POSTGRES_USER:-rrp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rrp_pass_2026}
+      # Dedicated database for this project.
+      POSTGRES_DB: ${POSTGRES_DB:-rrp_tender_db}
     ports:
       - "5432:5432"
     volumes:
-      - gem_pg_data:/var/lib/postgresql/data
+      - rrp_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gem_user -d gem_tenders"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rrp_user} -d ${POSTGRES_DB:-rrp_tender_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,21 +21,25 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: gem_backend
+    container_name: rrp_tender_backend
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://gem_user:gem_password@postgres:5432/gem_tenders?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rrp_user}:${POSTGRES_PASSWORD:-rrp_pass_2026}@postgres:5432/${POSTGRES_DB:-rrp_tender_db}?schema=public
       PORT: 4000
       NODE_ENV: production
+      # The browser talks to the frontend's origin, which proxies to this service.
+      CORS_ORIGIN: http://localhost:3000,http://127.0.0.1:3000
       SCRAPE_CRON: "0 */6 * * *"
-      SCRAPER_HEADLESS: "true"
       GEM_BASE_URL: https://bidplus.gem.gov.in
       SCRAPER_MAX_PAGES: "0"
-      SCRAPER_REQUEST_DELAY_MS: "50"
-      SCRAPER_API_CONCURRENCY: "24"
+      # Conservative defaults: this scrapes a public government portal.
+      SCRAPER_REQUEST_DELAY_MS: "150"
+      SCRAPER_API_CONCURRENCY: "6"
+      SCRAPER_MAX_RETRIES: "4"
+      SCRAPER_TIMEOUT_MS: "45000"
     ports:
       - "4000:4000"
     command: sh -c "npx prisma migrate deploy && node dist/index.js"
@@ -45,14 +48,17 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: gem_frontend
+    container_name: rrp_tender_frontend
     restart: unless-stopped
     depends_on:
       - backend
     environment:
+      # Reached from the user's browser, so it must be a host-visible URL.
       NEXT_PUBLIC_API_URL: http://localhost:4000/api
+      # Used by the same-origin /backend-api proxy inside the container network.
+      BACKEND_INTERNAL_URL: http://backend:4000
     ports:
       - "3000:3000"
 
 volumes:
-  gem_pg_data:
+  rrp_pg_data:

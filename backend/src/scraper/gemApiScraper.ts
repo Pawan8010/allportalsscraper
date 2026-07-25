@@ -1,77 +1,53 @@
 import { config } from "../config/env";
 import { RawScrapedTender } from "../types/scraper";
-import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 
-const GEM_LISTING_URL = "https://bidplus.gem.gov.in/all-bids";
-const GEM_DATA_URL = "https://bidplus.gem.gov.in/all-bids-data";
+const GEM_LISTING_URL = `${config.gemBaseUrl}/all-bids`;
+const GEM_DATA_URL = `${config.gemBaseUrl}/all-bids-data`;
 const PAGE_SIZE = 10;
 
 type GemBid = Record<string, unknown>;
 
+/**
+ * Single HTTP entry point for the scraper, on Node's built-in fetch.
+ *
+ * This used to shell out to curl once per page, which spawned a process and
+ * created + deleted a temp directory for every one of the ~4,800 pages in a full
+ * sweep. Native fetch keeps connections pooled and removes that per-page cost.
+ */
 async function requestText(
   url: string,
   options: { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string } = {}
 ): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; body: string }> {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "gem-scrape-"));
-  const headerPath = path.join(tempDir, "headers.txt");
-  const bodyPath = path.join(tempDir, "body.txt");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.scraperTimeoutMs);
   try {
-    return await new Promise((resolve, reject) => {
-      const curl = process.platform === "win32" ? "curl.exe" : "curl";
-      const args = [
-        "-sS",
-        "-k",
-        "-L",
-        "--connect-timeout",
-        String(Math.ceil(config.scraperTimeoutMs / 1000)),
-        "--max-time",
-        String(Math.ceil(config.scraperTimeoutMs / 1000)),
-        "-D",
-        headerPath,
-        "-o",
-        bodyPath,
-        url,
-      ];
-      for (const [key, value] of Object.entries(options.headers ?? {})) {
-        args.push("-H", `${key}: ${value}`);
-      }
-      if (options.method === "POST") {
-        args.push("-X", "POST", "--data", options.body ?? "");
-      }
-
-      execFile(curl, args, { timeout: config.scraperTimeoutMs + 5000, maxBuffer: 20 * 1024 * 1024 }, (error, _stdout, stderr) => {
-        if (error) {
-          reject(new Error(stderr || error.message));
-          return;
-        }
-        void Promise.all([readFile(headerPath, "utf8"), readFile(bodyPath, "utf8")])
-          .then(([rawHeaders, body]) => {
-            const headerBlocks = rawHeaders.split(/\r?\n\r?\n/).filter((part) => part.startsWith("HTTP/"));
-            const headerBlock = headerBlocks[headerBlocks.length - 1] ?? "";
-            const lines = headerBlock.split(/\r?\n/);
-            const statusCode = Number(lines[0]?.match(/HTTP\/\S+\s+(\d+)/)?.[1] ?? 0);
-            const headers: Record<string, string | string[]> = {};
-            for (const line of lines.slice(1)) {
-              const index = line.indexOf(":");
-              if (index <= 0) continue;
-              const key = line.slice(0, index).trim().toLowerCase();
-              const value = line.slice(index + 1).trim();
-              if (headers[key]) {
-                headers[key] = Array.isArray(headers[key]) ? [...headers[key], value] : [headers[key] as string, value];
-              } else {
-                headers[key] = value;
-              }
-            }
-            resolve({ statusCode, headers, body });
-          })
-          .catch(reject);
-      });
+    const response = await fetch(url, {
+      method: options.method ?? "GET",
+      headers: options.headers,
+      body: options.method === "POST" ? options.body : undefined,
+      redirect: "follow",
+      signal: controller.signal,
     });
+
+    const headers: Record<string, string | string[] | undefined> = {};
+    response.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
+    // Set-Cookie is the one header that legitimately repeats, and folding the
+    // copies into one comma-joined string corrupts cookies containing commas.
+    if (typeof response.headers.getSetCookie === "function") {
+      const setCookie = response.headers.getSetCookie();
+      if (setCookie.length > 0) headers["set-cookie"] = setCookie;
+    }
+
+    return { statusCode: response.status, headers, body: await response.text() };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Request to ${url} timed out after ${config.scraperTimeoutMs}ms`);
+    }
+    throw error;
   } finally {
-    await rm(tempDir, { recursive: true, force: true });
+    clearTimeout(timer);
   }
 }
 
@@ -147,7 +123,7 @@ async function fetchGemDataPage(csrf: string, cookie: string, page: number, sort
       "user-agent": config.scraperUserAgent,
       accept: "application/json, text/javascript, */*; q=0.01",
       "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-      origin: "https://bidplus.gem.gov.in",
+      origin: config.gemBaseUrl,
       referer: GEM_LISTING_URL,
       "x-requested-with": "XMLHttpRequest",
       cookie,
@@ -156,13 +132,34 @@ async function fetchGemDataPage(csrf: string, cookie: string, page: number, sort
     body: body.toString(),
   });
 
+  // A search term GeM has no bids for answers 404 with {"code":404,
+  // "message":"No data found"}. That is an empty result set, not a failure:
+  // treating it as an error burned the retry budget and logged a scary warning
+  // for what is simply "nothing matched".
+  const emptyResult = { numFound: 0, start: 0, docs: [] as GemBid[] };
+  if (response.statusCode === 404 && /no data found/i.test(response.body)) {
+    return emptyResult;
+  }
+
   if (response.statusCode < 200 || response.statusCode >= 300) {
     throw new Error(`GeM data page ${page} returned HTTP ${response.statusCode}: ${response.body.slice(0, 200)}`);
   }
 
   const json = JSON.parse(response.body) as any;
+  if (json.code === 404) return emptyResult;
   if (json.code !== 200) throw new Error(`GeM rejected page ${page}: ${json.message ?? "unknown error"}`);
   return json.response.response as { numFound: number; start: number; docs: GemBid[] };
+}
+
+/**
+ * Exponential backoff with jitter. Retrying a rate-limited portal on a fixed
+ * cadence just re-collides, and the jitter also de-synchronises the concurrent
+ * page workers after a shared failure.
+ */
+export function backoffDelayMs(attempt: number, baseDelayMs = 500, random: () => number = Math.random): number {
+  const exponential = baseDelayMs * 2 ** (attempt - 1);
+  const capped = Math.min(exponential, 30_000);
+  return Math.round(capped * (0.5 + random() * 0.5));
 }
 
 async function fetchGemDataPageWithRetry(csrf: string, cookie: string, page: number, sort?: string, searchTerm?: string) {
@@ -172,38 +169,65 @@ async function fetchGemDataPageWithRetry(csrf: string, cookie: string, page: num
       return await fetchGemDataPage(csrf, cookie, page, sort, searchTerm);
     } catch (error) {
       lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      if (attempt < config.scraperMaxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, backoffDelayMs(attempt)));
+      }
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
-function mapGemBid(bid: GemBid): RawScrapedTender | null {
+export function mapGemBid(bid: GemBid): RawScrapedTender | null {
   const tenderId = clean(bid.b_bid_number);
   const bidNumericId = clean(bid.b_id) ?? clean(bid.id);
-  const title = clean(bid.b_category_name) ?? clean(bid.bd_category_name);
+
+  // GeM truncates b_category_name to ~100 characters for display; the full item
+  // list lives in bd_category_name. Prefer the untruncated value so the title
+  // and the search vector both see the whole thing.
+  const fullItems = clean(bid.bd_category_name);
+  const shortItems = clean(bid.b_category_name);
+  const boqTitle = clean(bid.bbt_title);
+  const title = fullItems ?? shortItems ?? boqTitle;
   if (!tenderId || !title) return null;
 
+  // Mirrors the URL the all-bids page itself builds for each card.
   const bidType = firstValue<number>(bid.b_bid_type);
+  const evalType = firstValue<number>(bid.b_eval_type) ?? 0;
   let documentPath = "showbidDocument";
   if (bidType === 5) documentPath = "showdirectradocumentPdf";
-  if (bidType === 2) documentPath = "showradocumentPdf";
-  const documentURL = bidNumericId ? `https://bidplus.gem.gov.in/${documentPath}/${bidNumericId}` : GEM_LISTING_URL;
+  if (bidType === 2) documentPath = evalType > 0 ? "list-ra-schedules" : "showradocumentPdf";
+  const documentURL = bidNumericId ? `${config.gemBaseUrl}/${documentPath}/${bidNumericId}` : GEM_LISTING_URL;
 
   const ministry = clean(bid.ba_official_details_minName);
   const department = clean(bid.ba_official_details_deptName);
-  const organisation = clean(bid.ba_official_details_orgName) ?? ministry ?? department;
+  const organisation = clean(bid.ba_official_details_orgName) ?? ministry;
   const quantity = clean(bid.b_total_quantity);
+  const isRateContract = firstValue<number>(bid.is_rc_bid) === 1;
+  const isGlobalTender = firstValue<number>(bid.ba_is_global_tendering) === 1;
 
   return {
     tenderId,
     title,
     organisation,
-    department: ministry ?? department,
-    location: "India",
+    // Ministry and department are distinct fields on GeM; keep them that way
+    // rather than writing the ministry into both.
+    department: department ?? ministry,
+    // The public all-bids listing carries no delivery location or state - those
+    // are only on the bid document. Left null so the UI can say "not listed"
+    // instead of showing an invented value.
+    location: null,
     state: null,
-    category: "GeM Bid",
-    description: [title, ministry, department, organisation, quantity ? `Quantity: ${quantity}` : null]
+    category: boqTitle ?? "GeM Bid",
+    description: [
+      title,
+      boqTitle,
+      ministry,
+      department,
+      organisation,
+      quantity ? `Quantity: ${quantity}` : null,
+      isRateContract ? "Rate Contract" : null,
+      isGlobalTender ? "Global Tender" : null,
+    ]
       .filter(Boolean)
       .join(" | "),
     estimatedValueText: clean(bid.b_total_value),
@@ -211,7 +235,9 @@ function mapGemBid(bid: GemBid): RawScrapedTender | null {
     closingDateText: clean(bid.final_end_date_sort),
     tenderURL: documentURL,
     documentURL,
-    statusText: "LIVE",
+    // Only ongoing bids are requested, but the status is still derived from the
+    // closing date so a bid that expired mid-scrape is not recorded as LIVE.
+    statusText: null,
   };
 }
 
@@ -220,6 +246,15 @@ export interface GemApiScrapeOptions {
   sort?: string;
   startPage?: number;
   searchTerm?: string;
+  /**
+   * Explicit page numbers to fetch, in addition to the normal sweep. Used to
+   * re-attempt the pages an interrupted run recorded as failed.
+   */
+  retryPages?: number[];
+  /** Called for every page that failed after all retries. */
+  onPageError?: (page: number, error: Error) => void;
+  /** Called once GeM reports how many results the query actually has. */
+  onTotalKnown?: (statedTotal: number, maxAvailablePages: number) => void;
 }
 
 export interface GemApiScrapeResult {
@@ -236,8 +271,13 @@ export async function scrapeGemApi(
 ): Promise<GemApiScrapeResult> {
   const { csrf, cookie } = await fetchFirstPageSession();
   const firstPage = await fetchGemDataPage(csrf, cookie, 1, options.sort, options.searchTerm);
+
+  // GeM's own reported result count for this query. Never assume a figure -
+  // pagination stops where the portal says the results stop.
   const statedTotal = Number(firstPage.numFound || 0);
   const maxAvailablePages = Math.max(1, Math.ceil(statedTotal / PAGE_SIZE));
+  options.onTotalKnown?.(statedTotal, maxAvailablePages);
+
   const configuredMaxPages = options.maxPages ?? config.scraperMaxPages;
   const maxPages = configuredMaxPages > 0 ? Math.min(configuredMaxPages, maxAvailablePages) : maxAvailablePages;
   const configuredStartPage = options.startPage ?? config.scraperStartPage;
@@ -254,26 +294,47 @@ export async function scrapeGemApi(
     return mapped.length;
   };
 
+  const failedPages = new Set<number>();
+  const reportFailure = (page: number, error: unknown) => {
+    failedPages.add(page);
+    options.onPageError?.(page, error instanceof Error ? error : new Error(String(error)));
+  };
+
   if (startPage <= 1) {
     await handlePage(1, firstPage);
   }
 
+  // Pages an earlier interrupted run failed on get re-attempted first: upserts
+  // are idempotent, so overlapping work is safe and closes gaps.
+  const queue: number[] = [];
+  for (const page of options.retryPages ?? []) {
+    if (page >= 1 && page <= maxPages) queue.push(page);
+  }
+
   const concurrency = Math.max(1, config.scraperApiConcurrency);
   let nextPage = Math.max(2, startPage);
-  let emptyPageSeen = false;
-  const failedPages: number[] = [];
+  let exhausted = false;
+
+  const takeNextPage = (): number | null => {
+    if (queue.length > 0) return queue.shift() as number;
+    if (exhausted) return null;
+    const page = nextPage;
+    nextPage += 1;
+    if (page > maxPages) return null;
+    return page;
+  };
 
   async function worker() {
-    while (!emptyPageSeen) {
-      const page = nextPage;
-      nextPage += 1;
-      if (page > maxPages) return;
+    for (;;) {
+      const page = takeNextPage();
+      if (page === null) return;
       try {
         const pageData = await fetchGemDataPageWithRetry(csrf, cookie, page, options.sort, options.searchTerm);
         const count = await handlePage(page, pageData);
-        if (count === 0) emptyPageSeen = true;
-      } catch {
-        failedPages.push(page);
+        // An empty page means the portal has run out of results early.
+        if (count === 0) exhausted = true;
+      } catch (error) {
+        reportFailure(page, error);
       }
       if (config.scraperRequestDelayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, config.scraperRequestDelayMs));
@@ -283,14 +344,32 @@ export async function scrapeGemApi(
 
   await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
-  for (const page of failedPages) {
+  // One final sweep over everything that still failed, with a fresh session in
+  // case the CSRF token or cookies expired during a long run.
+  if (failedPages.size > 0) {
+    const stillFailed = Array.from(failedPages);
+    failedPages.clear();
+    let session = { csrf, cookie };
     try {
-      const pageData = await fetchGemDataPageWithRetry(csrf, cookie, page, options.sort, options.searchTerm);
-      await handlePage(page, pageData);
+      session = await fetchFirstPageSession();
     } catch {
-      // Keep the scrape moving; the next "new tender" scrape can fill occasional missed pages.
+      // Keep the original session; the per-page retry will report the failure.
+    }
+    for (const page of stillFailed) {
+      try {
+        const pageData = await fetchGemDataPageWithRetry(session.csrf, session.cookie, page, options.sort, options.searchTerm);
+        await handlePage(page, pageData);
+      } catch (error) {
+        reportFailure(page, error);
+      }
     }
   }
 
-  return { tenders, pagesScraped, statedTotal, failedPages, maxAvailablePages };
+  return {
+    tenders,
+    pagesScraped,
+    statedTotal,
+    failedPages: Array.from(failedPages).sort((left, right) => left - right),
+    maxAvailablePages,
+  };
 }

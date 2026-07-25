@@ -1,27 +1,27 @@
 import { Router } from "express";
 import {
-  listTenders,
-  searchTendersHandler,
   getTender,
   getStats,
   getRecentTenders,
   getBuyers,
   getCategories,
 } from "../controllers/tenderController";
+import { searchTenders } from "../controllers/searchController";
 
 const router = Router();
 
-// GET /api/tenders            -> paginated list with optional filters/sort
-// GET /api/tenders/search      -> free-text search (q) + filters/sort (same handler, kept
-//                                  as a distinct route to match the spec's API surface)
-// GET /api/tenders/stats       -> dashboard stats cards
-// GET /api/tenders/:id         -> single tender detail
+// GET /api/tenders/stats   -> dashboard counters
+// GET /api/tenders/search  -> the single normalized search pipeline
+// GET /api/tenders         -> same pipeline with no search terms (browse everything)
+// GET /api/tenders/:id     -> full tender detail by uuid or GeM bid number
+//
+// Static segments are registered before "/:id" so they are not swallowed by it.
 router.get("/stats", getStats);
-router.get("/search", searchTendersHandler);
+router.get("/search", searchTenders);
 router.get("/recent", getRecentTenders);
 router.get("/buyers", getBuyers);
 router.get("/categories", getCategories);
+router.get("/", searchTenders);
 router.get("/:id", getTender);
-router.get("/", listTenders);
 
 export default router;

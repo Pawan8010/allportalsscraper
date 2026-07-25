@@ -3,358 +3,202 @@ import { prisma } from "../config/db";
 import { logger } from "../utils/logger";
 import { RawScrapedTender } from "../types/scraper";
 import { mapRawTenderToUpsertData } from "../scraper/mapper";
-import { KEYWORDS } from "../scraper/keywords";
-import { scrapeGemApi } from "../scraper/gemApiScraper";
 
-export interface TenderQuery {
-  q?: string;
-  state?: string;
-  department?: string;
-  organisation?: string;
-  category?: string;
-  keyword?: string;
-  portal?: string;
-  status?: TenderStatus;
-  minValue?: number;
-  maxValue?: number;
-  publishedAfter?: string;
-  publishedBefore?: string;
-  closingAfter?: string;
-  closingBefore?: string;
-  sort?:
-    | "newest"
-    | "oldest"
-    | "closing_soon"
-    | "highest_value"
-    | "lowest_value"
-    | "recently_updated";
-  page?: number;
-  pageSize?: number;
+/**
+ * Storage-side tender operations.
+ *
+ * Searching lives in `searchService` - there is exactly one normalized search
+ * pipeline, and it is served from PostgreSQL. This module only writes scraped
+ * tenders and reads dashboard aggregates.
+ */
+
+export interface UpsertCounts {
+  inserted: number;
+  updated: number;
+  skipped: number;
 }
 
 /**
- * Upserts a batch of raw scraped tenders. Dedup key is `tenderId`.
- * Returns counts of how many were newly inserted vs updated.
+ * Upserts a batch of raw scraped tenders, keyed on source portal + bid number.
+ *
+ * `tenderId` is UNIQUE, so re-scraping a bid updates the existing row instead of
+ * creating a second one. Rows that fail to map or fail to write are counted as
+ * skipped rather than aborting the batch, so one bad record cannot lose a page.
  */
 export async function upsertScrapedTenders(
   rawTenders: RawScrapedTender[],
   scrapeRunId?: string
-): Promise<{ inserted: number; updated: number }> {
+): Promise<UpsertCounts> {
   let inserted = 0;
   let updated = 0;
+  let skipped = 0;
+
+  // Guard against a single page repeating a bid number.
+  const seenInBatch = new Set<string>();
 
   for (const raw of rawTenders) {
-    const data = {
-      ...mapRawTenderToUpsertData(raw),
-      lastSeenAt: new Date(),
-      lastSeenRunId: scrapeRunId ?? null,
-    };
-
-    const existing = await prisma.tender.findUnique({
-      where: { tenderId: raw.tenderId },
-      select: { id: true },
-    });
-
-    await prisma.tender.upsert({
-      where: { tenderId: raw.tenderId },
-      create: data,
-      update: data,
-    });
-
-    if (existing) {
-      updated += 1;
-    } else {
-      inserted += 1;
+    if (!raw.tenderId) {
+      skipped += 1;
+      continue;
     }
-  }
-
-  logger.info(`[tenderService] Upsert complete: ${inserted} inserted, ${updated} updated`);
-  return { inserted, updated };
-}
-
-/** Builds the Prisma WHERE clause for structured filters (everything except free-text `q`). */
-function buildWhere(query: TenderQuery): Prisma.TenderWhereInput {
-  const where: Prisma.TenderWhereInput = {
-    tenderStatus: query.status ?? TenderStatus.LIVE,
-  };
-
-  if (query.state) where.state = { equals: query.state, mode: "insensitive" };
-  if (query.department) where.department = { equals: query.department, mode: "insensitive" };
-  if (query.organisation) where.organisation = { equals: query.organisation, mode: "insensitive" };
-  if (query.category) where.category = { equals: query.category, mode: "insensitive" };
-  if (query.portal) where.portal = { equals: query.portal, mode: "insensitive" };
-  if (query.status) where.tenderStatus = query.status;
-  if (query.keyword) where.keywordMatched = { contains: query.keyword, mode: "insensitive" };
-
-  if (query.minValue !== undefined || query.maxValue !== undefined) {
-    where.estimatedValue = {
-      ...(query.minValue !== undefined ? { gte: new Prisma.Decimal(query.minValue) } : {}),
-      ...(query.maxValue !== undefined ? { lte: new Prisma.Decimal(query.maxValue) } : {}),
-    };
-  }
-
-  if (query.publishedAfter || query.publishedBefore) {
-    where.publishedDate = {
-      ...(query.publishedAfter ? { gte: new Date(query.publishedAfter) } : {}),
-      ...(query.publishedBefore ? { lte: new Date(query.publishedBefore) } : {}),
-    };
-  }
-
-  if (query.closingAfter || query.closingBefore) {
-    where.closingDate = {
-      ...(query.closingAfter ? { gte: new Date(query.closingAfter) } : {}),
-      ...(query.closingBefore ? { lte: new Date(query.closingBefore) } : {}),
-    };
-  }
-
-  return where;
-}
-
-function buildOrderBy(sort?: TenderQuery["sort"]): Prisma.TenderOrderByWithRelationInput {
-  switch (sort) {
-    case "oldest":
-      return { publishedDate: "asc" };
-    case "closing_soon":
-      return { closingDate: "asc" };
-    case "highest_value":
-      return { estimatedValue: "desc" };
-    case "lowest_value":
-      return { estimatedValue: "asc" };
-    case "recently_updated":
-      return { updatedAt: "desc" };
-    case "newest":
-    default:
-      return { publishedDate: "desc" };
-  }
-}
-
-const SEARCH_CORRECTIONS: Record<string, string> = {
-  slight: "sight",
-  site: "sight",
-  sigth: "sight",
-  singht: "sight",
-  lrf: "laser range finder",
-  nvd: "night vision device",
-  nvg: "night vision goggles",
-  eoss: "electro optical surveillance system",
-  loros: "long range observation system",
-  ptz: "pan tilt zoom camera",
-  eo: "electro optical",
-};
-const SEARCH_STOP_WORDS = new Set([
-  "and",
-  "for",
-  "from",
-  "with",
-  "the",
-  "this",
-  "that",
-  "system",
-  "systems",
-  "service",
-  "services",
-  "repair",
-  "supply",
-  "installation",
-  "long",
-  "range",
-]);
-const ACRONYM_TERMS = new Set(["lrf", "nvd", "nvg", "eoss", "loros", "ptz", "eo", "lwir", "mwir"]);
-const EQUIPMENT_FAMILY_TERMS = new Set(["sight", "camera", "surveillance", "thermal", "vision"]);
-const GEM_SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
-const gemSearchCache = new Map<string, { expiresAt: number; tenderIds: string[]; statedTotal: number; scrapedAt: Date }>();
-
-function unique(values: string[]): string[] {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
-}
-
-function expandSearchParts(searchTerm: string): { phrases: string[]; tokens: string[]; relatedKeywords: string[] } {
-  const normalized = searchTerm.toLowerCase().replace(/[^\w\s/+-]/g, " ").replace(/\s+/g, " ").trim();
-  const rawWords = normalized.split(" ").filter(Boolean);
-  const hasSightTypo = rawWords.some((word) => ["slight", "site", "sigth", "singht"].includes(word));
-  const isAcronymOnly = rawWords.length === 1 && ACRONYM_TERMS.has(rawWords[0]);
-  const correctedWords = rawWords.map((word) => SEARCH_CORRECTIONS[word] ?? word);
-  const correctedPhrase = correctedWords.join(" ");
-  const isSingleEquipmentFamilyTerm = correctedWords.length === 1 && EQUIPMENT_FAMILY_TERMS.has(correctedWords[0]);
-  const tokenSource = hasSightTypo ? ["sight"] : isAcronymOnly ? rawWords : correctedPhrase.split(/\s+/);
-  const tokens = unique(tokenSource.filter((token) => token.length >= 3 && !SEARCH_STOP_WORDS.has(token)));
-  const relatedKeywords = KEYWORDS.filter((keyword) => {
-    const key = keyword.toLowerCase();
-    if (tokens.length > 1) {
-      return tokens.every((token) => key.includes(token)) || key.includes(correctedPhrase) || correctedPhrase.includes(key);
+    const portal = raw.portal?.trim() || "GeM";
+    const naturalKey = `${portal}\u0000${raw.tenderId}`;
+    if (seenInBatch.has(naturalKey)) {
+      skipped += 1;
+      continue;
     }
-    return tokens.some((token) => key.includes(token)) || key.includes(correctedPhrase) || correctedPhrase.includes(key);
-  });
+    seenInBatch.add(naturalKey);
 
-  if (tokens.length === 1 && tokens.includes("sight")) {
-    relatedKeywords.push(...KEYWORDS.filter((keyword) => keyword.toLowerCase().includes("sight")));
-  }
-  if (tokens.length === 1 && tokens.includes("thermal")) {
-    relatedKeywords.push(...KEYWORDS.filter((keyword) => keyword.toLowerCase().includes("thermal")));
-  }
-  if (tokens.length === 1 && tokens.includes("camera")) {
-    relatedKeywords.push(...KEYWORDS.filter((keyword) => keyword.toLowerCase().includes("camera")));
-  }
-  if (tokens.length === 1 && tokens.includes("surveillance")) {
-    relatedKeywords.push(...KEYWORDS.filter((keyword) => keyword.toLowerCase().includes("surveillance")));
-  }
+    try {
+      const data = {
+        ...mapRawTenderToUpsertData(raw),
+        lastSeenAt: new Date(),
+        lastSeenRunId: scrapeRunId ?? null,
+      };
 
-  return {
-    phrases: isSingleEquipmentFamilyTerm
-      ? []
-      : unique([searchTerm, normalized, correctedPhrase]).filter((phrase) => phrase.length >= 3),
-    tokens,
-    relatedKeywords: unique(relatedKeywords).slice(0, 30),
-  };
-}
-
-function normalizeGemSearchTerm(searchTerm: string): string {
-  return searchTerm.replace(/\s+/g, " ").trim();
-}
-
-function splitLiveSearchTerms(searchTerm: string): string[] {
-  const terms = searchTerm.split("||").map(normalizeGemSearchTerm).filter((term) => term.length > 0);
-  const expanded = terms.flatMap((term) => {
-    const corrected = expandSearchParts(term).phrases
-      .map(normalizeGemSearchTerm)
-      .filter((phrase) => phrase.length > 0);
-    return [term, ...corrected];
-  });
-  return unique(expanded);
-}
-
-async function syncGemSearchResults(searchTerm: string) {
-  const normalized = normalizeGemSearchTerm(searchTerm);
-  const cacheKey = normalized.toLowerCase();
-  const cached = gemSearchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached;
-
-  logger.info(`[tenderService] Syncing live GeM search results for "${normalized}"`);
-  const seenTenderIds = new Set<string>();
-  const orderedTenderIds: string[] = [];
-  const result = await scrapeGemApi(
-    async (pageTenders) => {
-      const uniquePage = pageTenders.filter((tender) => {
-        if (seenTenderIds.has(tender.tenderId)) return false;
-        seenTenderIds.add(tender.tenderId);
-        orderedTenderIds.push(tender.tenderId);
-        return true;
+      // `upsert` alone cannot tell us which branch it took, and the count is
+      // reported to the UI, so the existence check is deliberate.
+      const existing = await prisma.tender.findUnique({
+        where: { portal_tenderId: { portal, tenderId: raw.tenderId } },
+        select: { id: true },
       });
-      if (uniquePage.length > 0) {
-        await upsertScrapedTenders(uniquePage);
-      }
-    },
-    {
-      searchTerm: normalized,
-      sort: "Bid-End-Date-Oldest",
-      startPage: 1,
-      maxPages: 0,
-    }
-  );
 
-  const value = {
-    expiresAt: Date.now() + GEM_SEARCH_CACHE_TTL_MS,
-    tenderIds: orderedTenderIds,
-    statedTotal: result.statedTotal,
-    scrapedAt: new Date(),
-  };
-  gemSearchCache.set(cacheKey, value);
-  logger.info(
-    `[tenderService] GeM search synced for "${normalized}": statedTotal=${result.statedTotal}, unique=${orderedTenderIds.length}, failedPages=${result.failedPages.length}`
-  );
-  return value;
+      await prisma.tender.upsert({
+        where: { portal_tenderId: { portal, tenderId: raw.tenderId } },
+        create: data,
+        update: data,
+      });
+
+      if (existing) {
+        updated += 1;
+      } else {
+        inserted += 1;
+      }
+    } catch (error) {
+      skipped += 1;
+      logger.warn(
+        `[tenderService] Skipped bid ${raw.tenderId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  logger.info(`[tenderService] Upsert complete: ${inserted} inserted, ${updated} updated, ${skipped} skipped`);
+  return { inserted, updated, skipped };
 }
+
+/** Full tender detail, including every normalized relation. */
+export async function getTenderById(id: string) {
+  return prisma.tender.findUnique({
+    where: { id },
+    include: {
+      buyer: true,
+      locationRel: true,
+      financial: true,
+      eligibility: true,
+      products: true,
+      attachments: true,
+      updates: { orderBy: { createdAt: "desc" } },
+    },
+  });
+}
+
+/** Looks a tender up by its GeM bid number, so the API accepts either id form. */
+export async function getTenderByBidNumber(tenderId: string) {
+  return prisma.tender.findFirst({
+    where: { tenderId },
+    orderBy: [{ portal: "asc" }, { updatedAt: "desc" }],
+    include: {
+      buyer: true,
+      locationRel: true,
+      financial: true,
+      eligibility: true,
+      products: true,
+      attachments: true,
+      updates: { orderBy: { createdAt: "desc" } },
+    },
+  });
+}
+
+export interface TenderStats {
+  totalTenders: number;
+  gemListedTotal: number;
+  newToday: number;
+  closingSoon: number;
+  keywordMatches: number;
+  duplicateOrUnmappedListings: number;
+  lastScrapeAt: string | null;
+  lastScrapeStatus: string | null;
+}
+
+/** Number of days ahead that counts as "closing soon" on the dashboard. */
+const CLOSING_SOON_DAYS = 7;
 
 /**
- * Searches and filters tenders. Free-text `q` uses broad case-insensitive
- * matching across bid number, title, buyer/department, category, keyword tags,
- * and description so partial searches return all related stored GeM tenders.
+ * Dashboard aggregates, all read from PostgreSQL.
+ *
+ * `gemListedTotal` is GeM's own reported result count from the most recent run
+ * that recorded one - it is read from the `statedTotal` column, never
+ * hard-coded, and falls back to the stored count when no run has reported it.
  */
-export async function searchTenders(query: TenderQuery) {
-  const page = Math.max(1, query.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
-  const skip = (page - 1) * pageSize;
-
-  const where = buildWhere(query);
-  const orderBy = buildOrderBy(query.sort);
-
-  if (query.q && query.q.trim().length > 0) {
-    const searchTerm = query.q.trim();
-    const liveTerms = splitLiveSearchTerms(searchTerm);
-    const liveSearches = await Promise.all(liveTerms.map(syncGemSearchResults));
-    const mergedTenderIds = unique(liveSearches.flatMap((result) => result.tenderIds));
-    const statedTotal = liveSearches.length === 1 ? liveSearches[0].statedTotal : mergedTenderIds.length;
-    const pageTenderIds = mergedTenderIds.slice(skip, skip + pageSize);
-    const orderIndex = new Map(pageTenderIds.map((tenderId, index) => [tenderId, index]));
-
-    const data = pageTenderIds.length
-      ? await prisma.tender.findMany({
-          where: { AND: [where, { tenderId: { in: pageTenderIds } }] },
-        })
-      : [];
-
-    data.sort((left, right) => (orderIndex.get(left.tenderId) ?? 0) - (orderIndex.get(right.tenderId) ?? 0));
-
-    return paginate(data, page, pageSize, statedTotal, {
-      source: liveTerms.length > 1 ? "live-gem-multi" : "live-gem",
-      gemStatedTotal: statedTotal,
-      gemUniqueStored: mergedTenderIds.length,
-      gemSearchedAt: new Date(Math.max(...liveSearches.map((result) => result.scrapedAt.getTime()))).toISOString(),
-      gemSearchTerms: liveTerms,
-    });
-  }
-
-  const [data, totalItems] = await Promise.all([
-    prisma.tender.findMany({ where, orderBy, skip, take: pageSize }),
-    prisma.tender.count({ where }),
-  ]);
-
-  return paginate(data, page, pageSize, totalItems);
-}
-
-function paginate<T>(data: T[], page: number, pageSize: number, totalItems: number, meta?: Record<string, unknown>) {
-  return {
-    data,
-    pagination: {
-      page,
-      pageSize,
-      totalItems,
-      totalPages: Math.max(1, Math.ceil(totalItems / pageSize)),
-    },
-    meta,
-  };
-}
-
-export async function getTenderById(id: string) {
-  return prisma.tender.findUnique({ where: { id } });
-}
-
-export async function getTenderStats() {
+export async function getTenderStats(): Promise<TenderStats> {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const in7Days = new Date();
-  in7Days.setDate(in7Days.getDate() + 7);
+  const now = new Date();
+  const closingHorizon = new Date(now);
+  closingHorizon.setDate(closingHorizon.getDate() + CLOSING_SOON_DAYS);
 
-  const [totalTenders, newToday, closingSoon, keywordMatches, latestRun] = await Promise.all([
+  const [totalTenders, newToday, closingSoon, keywordMatches, latestStatedRun, latestRun] = await Promise.all([
     prisma.tender.count({ where: { tenderStatus: TenderStatus.LIVE } }),
-    prisma.tender.count({ where: { tenderStatus: TenderStatus.LIVE, createdAt: { gte: startOfToday } } }),
     prisma.tender.count({
-      where: { tenderStatus: TenderStatus.LIVE, closingDate: { gte: new Date(), lte: in7Days } },
+      where: { tenderStatus: TenderStatus.LIVE, createdAt: { gte: startOfToday } },
     }),
-    prisma.tender.count({ where: { tenderStatus: TenderStatus.LIVE, keywordMatched: { not: null } } }),
-    prisma.scrapeRun.findFirst({ where: { status: "SUCCESS" }, orderBy: { startedAt: "desc" } }),
+    prisma.tender.count({
+      where: { tenderStatus: TenderStatus.LIVE, closingDate: { gte: now, lte: closingHorizon } },
+    }),
+    prisma.tender.count({
+      where: { tenderStatus: TenderStatus.LIVE, keywordMatched: { not: null } },
+    }),
+    // Most recent run that actually learned GeM's own result count. Both FULL
+    // and NEW runs query the same "ongoing bids" listing (they differ only in
+    // sort order and page budget), so either one's statedTotal is the real
+    // portal-wide figure. Nothing here is hard-coded.
+    prisma.scrapeRun.findFirst({
+      where: { portal: "GeM", statedTotal: { not: null } },
+      orderBy: { startedAt: "desc" },
+      select: { statedTotal: true },
+    }),
+    prisma.scrapeRun.findFirst({
+      orderBy: { startedAt: "desc" },
+      select: { startedAt: true, finishedAt: true, status: true },
+    }),
   ]);
 
-  const statedTotalMatch = latestRun?.errorMessage?.match(/GeM stated total:\s*(\d+)/i);
-  const gemListedTotal = statedTotalMatch ? Number(statedTotalMatch[1]) : totalTenders;
+  const gemListedTotal = latestStatedRun?.statedTotal ?? totalTenders;
 
   return {
     totalTenders,
     gemListedTotal,
-    duplicateOrUnmappedListings: Math.max(0, gemListedTotal - totalTenders),
     newToday,
     closingSoon,
     keywordMatches,
+    // GeM counts listing rows; we store unique bid numbers. The gap is the
+    // duplicate/unmappable rows we deliberately did not insert.
+    duplicateOrUnmappedListings: Math.max(0, gemListedTotal - totalTenders),
+    lastScrapeAt: (latestRun?.finishedAt ?? latestRun?.startedAt)?.toISOString() ?? null,
+    lastScrapeStatus: latestRun?.status ?? null,
   };
+}
+
+/** Distinct non-null values of a filterable column, for filter dropdowns. */
+export async function getDistinctValues(field: "category" | "state" | "department" | "organisation") {
+  const rows = (await prisma.tender.findMany({
+    where: { [field]: { not: null } } as Prisma.TenderWhereInput,
+    select: { [field]: true } as Prisma.TenderSelect,
+    distinct: [field],
+    orderBy: { [field]: "asc" } as Prisma.TenderOrderByWithRelationInput,
+    take: 500,
+  })) as unknown as Array<Record<string, string | null>>;
+
+  return rows.map((row) => row[field]).filter((value): value is string => Boolean(value));
 }

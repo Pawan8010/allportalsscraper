@@ -17,65 +17,68 @@ enum TenderStatus {
 }
 
 model Tender {
-  id             String       @id @default(uuid())
+  id String @id @default(uuid())
 
   // Natural key from the source portal - used for upsert/dedup.
-  tenderId       String       @unique
-  portal         String       @default("GeM")
+  tenderId String
+  portal   String @default("GeM")
 
-  title          String
-  organisation   String?
-  department     String?
-  location       String?
-  state          String?
-  category       String?
-  description    String?      @db.Text
+  title        String
+  organisation String?
+  department   String?
+  location     String?
+  state        String?
+  category     String?
+  description  String? @db.Text
 
-  estimatedValue Decimal?     @db.Decimal(18, 2)
-  emdAmount      Decimal?     @db.Decimal(18, 2)
-  tenderFee      Decimal?     @db.Decimal(18, 2)
+  estimatedValue Decimal? @db.Decimal(18, 2)
+  emdAmount      Decimal? @db.Decimal(18, 2)
+  tenderFee      Decimal? @db.Decimal(18, 2)
 
-  publishedDate  DateTime?
-  closingDate    DateTime?
-  openingDate    DateTime?
+  publishedDate DateTime?
+  closingDate   DateTime?
+  openingDate   DateTime?
 
   // Comma-separated list of matched keywords (e.g. "Thermal Camera,LWIR")
   keywordMatched String?
 
-  tenderStatus   TenderStatus @default(UNKNOWN)
+  tenderStatus TenderStatus @default(UNKNOWN)
 
-  tenderURL      String
-  documentURL    String?
+  tenderURL   String
+  documentURL String?
 
   // Full text search vector, maintained by a DB trigger (see migration).
-  searchVector   Unsupported("tsvector")?
+  searchVector Unsupported("tsvector")?
 
-  lastUpdated    DateTime     @default(now())
-  lastSeenAt     DateTime?
-  lastSeenRunId  String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  lastUpdated   DateTime  @default(now())
+  lastSeenAt    DateTime?
+  lastSeenRunId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // New fields for normalization
-  hash           String?      // SHA256 of details for duplicate detection
-  buyerId        String?
-  buyer          Buyer?       @relation(fields: [buyerId], references: [id], onDelete: SetNull)
-  locationId     String?
-  locationRel    Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  financialId    String?
-  financial      Financial?   @relation(fields: [financialId], references: [id], onDelete: SetNull)
-  eligibilityId  String?
-  eligibility    Eligibility? @relation(fields: [eligibilityId], references: [id], onDelete: SetNull)
-  products       Product[]
-  attachments    Attachment[]
-  updates        UpdateHistory[]
+  hash          String? // SHA256 of details for duplicate detection
+  buyerId       String?
+  buyer         Buyer?          @relation(fields: [buyerId], references: [id], onDelete: SetNull)
+  locationId    String?
+  locationRel   Location?       @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  financialId   String?
+  financial     Financial?      @relation(fields: [financialId], references: [id], onDelete: SetNull)
+  eligibilityId String?
+  eligibility   Eligibility?    @relation(fields: [eligibilityId], references: [id], onDelete: SetNull)
+  products      Product[]
+  attachments   Attachment[]
+  updates       UpdateHistory[]
 
+  @@unique([portal, tenderId])
   @@index([tenderId])
   @@index([publishedDate])
   @@index([closingDate])
   @@index([portal])
   @@index([title])
   @@index([organisation])
+  @@index([department])
+  @@index([location])
   @@index([keywordMatched])
   @@index([state])
   @@index([category])
@@ -188,17 +191,33 @@ model UpdateHistory {
   @@map("update_history")
 }
 
-// Tracks each scrape run for observability / retry bookkeeping.
+// Tracks each scrape run for observability, progress reporting and resumability.
 model ScrapeRun {
-  id           String   @id @default(uuid())
-  startedAt    DateTime @default(now())
-  finishedAt   DateTime?
-  status       String   @default("RUNNING") // RUNNING | SUCCESS | FAILED
-  pagesScraped Int      @default(0)
-  tendersFound Int      @default(0)
-  tendersNew   Int      @default(0)
-  tendersUpdated Int    @default(0)
-  errorMessage String?  @db.Text
+  id             String    @id @default(uuid())
+  portal         String    @default("GeM")
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  status         String    @default("RUNNING") // RUNNING | SUCCESS | PARTIAL | FAILED
+  mode           String    @default("FULL") // FULL | NEW | SEARCH | SCHEDULED
+  pagesScraped   Int       @default(0)
+  tendersFound   Int       @default(0)
+  tendersNew     Int       @default(0)
+  tendersUpdated Int       @default(0)
+  tendersSkipped Int       @default(0)
+  errorCount     Int       @default(0)
+  // GeM's own reported result total for this run's query - never hard-coded.
+  statedTotal    Int?
+  // Highest page number confirmed stored, so an interrupted run can resume.
+  lastPage       Int       @default(0)
+  // Advanced on every progress write. Lets startup tell a run abandoned by a
+  // dead process apart from one another live process is still working on.
+  heartbeatAt    DateTime?
+  // JSON array of page numbers that failed after all retries.
+  failedPages    String?   @db.Text
+  errorMessage   String?   @db.Text
 
+  @@index([status])
+  @@index([portal])
+  @@index([startedAt])
   @@map("scrape_runs")
 }

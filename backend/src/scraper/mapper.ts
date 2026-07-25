@@ -21,7 +21,7 @@ export function mapRawTenderToUpsertData(raw: RawScrapedTender) {
 
   const data = {
     tenderId: raw.tenderId,
-    portal: "GeM",
+    portal: cleanText(raw.portal) ?? "GeM",
     title,
     organisation: cleanText(raw.organisation),
     department: cleanText(raw.department),
