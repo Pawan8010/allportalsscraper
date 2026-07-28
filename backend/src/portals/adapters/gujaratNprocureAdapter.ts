@@ -75,10 +75,16 @@ export const gujaratNprocureAdapter: PortalAdapter = {
     const calendarHtml = await withRetry(() => fetchCalendarHtml(), { retries: env.portalMaxRetries });
     const counts = extractTenderCounts(calendarHtml);
     const dates = Object.keys(counts).sort();
-    // The calendar widget's own per-day counts sum to a real, portal-stated
-    // total for the current month -- same "how much is there to scrape"
-    // signal other adapters report via a totalCount/x-total-count header.
-    const statedTotal = Object.values(counts).reduce((sum, c) => sum + c, 0);
+    // The calendar widget's per-day counts are RAW ROW counts, not unique
+    // tenders -- confirmed live 28 Jul 2026: one day (521 "tenders closing")
+    // had only 393 distinct reference numbers, the other 128 being
+    // additional lot/item rows under the same base tender. Summing these
+    // across the month therefore overstates the real total and made the
+    // coverage bar permanently stuck around 60% even once every real
+    // tender had been captured. Used only as an in-progress "how far
+    // through the calendar are we" signal; the run's *final* statedTotal
+    // (below) is corrected to the true deduplicated count once known.
+    const rawSum = Object.values(counts).reduce((sum, c) => sum + c, 0);
 
     const results: PortalTender[] = [];
     let pagesScanned = 0;
@@ -92,15 +98,16 @@ export const gujaratNprocureAdapter: PortalAdapter = {
         logger.warn({ portal: "gujarat_nprocure", date, err: String(err) }, "gujarat day report failed, skipping");
       }
       pagesScanned += 1;
-      options.onProgress?.({ pagesScanned, tendersFound: results.length, statedTotal });
+      options.onProgress?.({ pagesScanned, tendersFound: results.length, statedTotal: rawSum });
       if (env.portalRequestDelayMs > 0) {
         await new Promise((r) => setTimeout(r, env.portalRequestDelayMs));
       }
     }
 
     // Multiple dates can list the same tender again if it spans several
-    // closing batches on this portal -- de-duplicate by tenderId across the
-    // whole run, not just within a single day's report.
+    // closing batches on this portal, or if it's a multi-lot tender listed
+    // as several rows under one reference number -- de-duplicate by
+    // tenderId across the whole run, not just within a single day's report.
     const seen = new Set<string>();
     const deduped = results.filter((t) => {
       if (seen.has(t.tenderId)) return false;
@@ -108,7 +115,16 @@ export const gujaratNprocureAdapter: PortalAdapter = {
       return true;
     });
 
-    logger.info({ portal: "gujarat_nprocure", days: dates.length, count: deduped.length }, "gujarat_nprocure scrape complete");
+    // Correct the final reported total to what's actually achievable (the
+    // deduplicated count), not the raw pre-dedup sum -- otherwise the
+    // coverage bar reads "62%, 2,506 to go" forever even with nothing real
+    // left to find.
+    options.onProgress?.({ pagesScanned, tendersFound: deduped.length, statedTotal: deduped.length });
+
+    logger.info(
+      { portal: "gujarat_nprocure", days: dates.length, rawRows: results.length, uniqueTenders: deduped.length },
+      "gujarat_nprocure scrape complete"
+    );
     return deduped;
   },
 

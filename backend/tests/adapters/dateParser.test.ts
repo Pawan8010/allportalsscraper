@@ -1,4 +1,4 @@
-import { parseGepnicDate, extractTenderId } from "../../src/utils/dateParser";
+import { parseGepnicDate, parseSlash24hDate, parseAssistedDate, extractTenderId } from "../../src/utils/dateParser";
 
 describe("parseGepnicDate", () => {
   it("parses date+time with PM correctly", () => {
@@ -31,6 +31,57 @@ describe("parseGepnicDate", () => {
     expect(parseGepnicDate("")).toBeNull();
     expect(parseGepnicDate(undefined)).toBeNull();
     expect(parseGepnicDate(null)).toBeNull();
+  });
+});
+
+describe("parseSlash24hDate", () => {
+  it("parses DD/MM/YYYY HH:MM with a day above 12 -- the exact case that used to become an Invalid Date", () => {
+    // "29/07/2026" is unambiguous as DD/MM/YYYY since no month 29 exists,
+    // but JS's native `new Date("29/07/2026 10:30")` reads it as MM/DD/YYYY
+    // and silently produces an Invalid Date. Real IREPS row, 28 Jul 2026.
+    const d = parseSlash24hDate("29/07/2026 10:30");
+    expect(d).not.toBeNull();
+    expect(d!.getUTCFullYear()).toBe(2026);
+    expect(d!.getUTCMonth()).toBe(6); // July
+    expect(d!.getUTCDate()).toBe(29);
+    expect(d!.getUTCHours()).toBe(10);
+    expect(d!.getUTCMinutes()).toBe(30);
+  });
+
+  it("parses a date with no time component", () => {
+    const d = parseSlash24hDate("05/02/2026");
+    expect(d).not.toBeNull();
+    expect(d!.getUTCHours()).toBe(0);
+  });
+
+  it("returns null for garbage input instead of throwing", () => {
+    expect(parseSlash24hDate("not a date")).toBeNull();
+    expect(parseSlash24hDate("21-Jan-2026 03:00 PM")).toBeNull();
+    expect(parseSlash24hDate(null)).toBeNull();
+  });
+});
+
+describe("parseAssistedDate", () => {
+  it("prefers the unambiguous slash/24h reading over a misparse", () => {
+    const d = parseAssistedDate("29/07/2026 10:30");
+    expect(d!.getUTCDate()).toBe(29);
+    expect(d!.getUTCMonth()).toBe(6);
+  });
+
+  it("still handles the GeM dash/12h format for other assisted portals", () => {
+    const d = parseAssistedDate("27-05-2026 6:47 PM");
+    expect(d!.getUTCDate()).toBe(27);
+    expect(d!.getUTCHours()).toBe(18);
+  });
+
+  it("still handles the GePNIC dash-month-name format", () => {
+    const d = parseAssistedDate("21-Jan-2026 03:00 PM");
+    expect(d!.getUTCMonth()).toBe(0);
+  });
+
+  it("returns null rather than an Invalid Date for unrecognised text", () => {
+    expect(parseAssistedDate("TODAY")).toBeNull();
+    expect(parseAssistedDate(null)).toBeNull();
   });
 });
 

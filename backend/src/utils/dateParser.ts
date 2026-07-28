@@ -69,6 +69,42 @@ export function parseGemDate(raw: string | null | undefined): Date | null {
 }
 
 /**
+ * "29/07/2026 10:30" -- DD/MM/YYYY HH:MM, 24-hour, no AM/PM marker. Seen live
+ * on IREPS's assisted-scrape results table (28 Jul 2026).
+ */
+const SLASH_24H_DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/;
+
+export function parseSlash24hDate(raw: string | null | undefined): Date | null {
+  if (!raw) return null;
+  const match = raw.trim().match(SLASH_24H_DATE_RE);
+  if (!match) return null;
+  const [, dayStr, monthStr, yearStr, hourStr, minStr] = match;
+  const day = parseInt(dayStr, 10);
+  const month = parseInt(monthStr, 10) - 1;
+  const year = parseInt(yearStr, 10);
+  const hour = hourStr ? parseInt(hourStr, 10) : 0;
+  const minute = minStr ? parseInt(minStr, 10) : 0;
+  const date = new Date(Date.UTC(year, month, day, hour, minute));
+  return isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Best-effort date parsing for the assisted-scrape path, which reads
+ * whatever a human happens to be looking at on ANY portal -- unlike the
+ * other parsers here, it can't assume one fixed source format. Tries every
+ * known real-world format in turn before giving up, so a raw regex match
+ * (e.g. "29/07/2026 10:30") never gets handed to `new Date(...)` directly --
+ * JS's native parser reads slash-dates as MM/DD/YYYY, so a day-of-month
+ * above 12 (like "29") silently produces an Invalid Date, which then fails
+ * the whole row's DB write, not just that one field (confirmed live: this
+ * dropped 29 of 35 real IREPS rows on 28 Jul 2026 before this fix). Returns
+ * null rather than a fabricated or Invalid Date when nothing matches.
+ */
+export function parseAssistedDate(raw: string | null | undefined): Date | null {
+  return parseSlash24hDate(raw) ?? parseGemDate(raw) ?? parseGepnicDate(raw);
+}
+
+/**
  * Extracts a reference/tender number from free text where the ID appears as
  * a distinct token (e.g. a table cell already isolated to just the ID) or is
  * embedded in a longer string like "Reference No: ABC/123/2026".

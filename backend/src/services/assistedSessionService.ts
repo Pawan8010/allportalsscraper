@@ -5,6 +5,7 @@ import { PortalRegistryEntry, PortalTender } from "../portals/portal.types";
 import { prisma } from "./prisma";
 import { upsertTenders } from "./portalScrapeService";
 import { logger } from "../utils/logger";
+import { parseAssistedDate } from "../utils/dateParser";
 
 /**
  * For portals that are CAPTCHA/session-gated with no scriptable public API
@@ -152,6 +153,16 @@ function parseRows(
     if (!tenderId) continue;
 
     const dateMatches = text.match(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM)?)?/gi) ?? [];
+    // Parse each raw match into a real Date before storing it -- handing
+    // an unparsed string like "29/07/2026 10:30" straight through used to
+    // reach `new Date(...)` downstream, which reads slash-dates as
+    // MM/DD/YYYY and silently produces an Invalid Date for any day above
+    // 12. Prisma then rejects the whole row, not just the date field
+    // (confirmed live: dropped 29 of 35 real IREPS rows, 28 Jul 2026).
+    // Unparseable matches are dropped rather than passed through broken.
+    const parsedDates = dateMatches
+      .map((d) => parseAssistedDate(d))
+      .filter((d): d is Date => d !== null);
     const title =
       cells
         .filter((cell) => cell !== tenderId && cell.length > 8 && !/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(cell))
@@ -166,8 +177,8 @@ function parseRows(
       tenderURL: absoluteLink,
       documentURL: absoluteLink,
       description: text,
-      publishedDate: dateMatches[0],
-      closingDate: dateMatches.at(-1),
+      publishedDate: parsedDates[0]?.toISOString(),
+      closingDate: parsedDates.at(-1)?.toISOString(),
       status: "active",
     });
   }
@@ -212,35 +223,48 @@ async function rowsSignature(page: Page): Promise<string> {
   );
 }
 
-async function clickNext(page: Page): Promise<boolean> {
+async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
   const previousRows = await rowsSignature(page);
-  const candidates = [
-    page.locator(".dataTables_paginate .next:not(.disabled) a"),
-    page.locator("li.page-item.next:not(.disabled) a.page-link"),
-    page.locator('button[aria-label*="next page" i]:not([disabled])'),
-    page.locator('[class*="pagination"] [class*="next"]:not(.disabled) a'),
-    page.getByRole("link", { name: /^(next|next page|»|>>|>)$/i }),
-    page.getByRole("button", { name: /^(next|next page|»|>>|>)$/i }),
-    page.locator('a[rel="next"]'),
+  const nextPageNumber = String(pageNumber + 1);
+  const candidates: { label: string; locator: ReturnType<Page["locator"]> }[] = [
+    { label: "dataTables .next", locator: page.locator(".dataTables_paginate .next:not(.disabled) a") },
+    { label: "bootstrap li.next", locator: page.locator("li.page-item.next:not(.disabled) a.page-link") },
+    { label: "aria-label next page", locator: page.locator('button[aria-label*="next page" i]:not([disabled])') },
+    { label: "[class*=pagination] next", locator: page.locator('[class*="pagination"] [class*="next"]:not(.disabled) a') },
+    { label: "role=link next", locator: page.getByRole("link", { name: /^(next|next page|»|>>|>)$/i }) },
+    { label: "role=button next", locator: page.getByRole("button", { name: /^(next|next page|»|>>|>)$/i }) },
+    { label: "rel=next", locator: page.locator('a[rel="next"]') },
     // Classic ASP.NET WebForms GridView pagination: a postback link whose
     // __EVENTARGUMENT is literally "Next" (or "Page$Next"), or a plain link
     // reading "Next" not caught by the accessible-name query above because
     // the grid renders it as a raw <a> with no role/aria-label at all.
-    page.locator('a[href*="__doPostBack"][href*="Next" i]'),
-    page.locator("a").filter({ hasText: /^next$/i }),
+    { label: "__doPostBack Next", locator: page.locator('a[href*="__doPostBack"][href*="Next" i]') },
+    { label: "plain <a>Next</a>", locator: page.locator("a").filter({ hasText: /^next$/i }) },
+    // Icon-only controls: no visible text at all, just an image/SVG whose
+    // alt/title says "next", or a link/button whose *only* accessible
+    // signal is that attribute.
+    { label: "img[alt*=next]", locator: page.locator('a:has(img[alt*="next" i]), a:has(img[title*="next" i])') },
+    { label: "[title*=next]", locator: page.locator('a[title*="next" i], button[title*="next" i]') },
+    // Numbered pagination with no distinct "Next" control at all -- click
+    // the link/button whose visible text is literally the next page number.
+    { label: `page number "${nextPageNumber}"`, locator: page.getByRole("link", { name: nextPageNumber, exact: true }) },
+    { label: `page number button "${nextPageNumber}"`, locator: page.getByRole("button", { name: nextPageNumber, exact: true }) },
   ];
-  for (const raw of candidates) {
+  const diagnostics: string[] = [];
+  for (const { label, locator: raw } of candidates) {
     // A large results grid commonly repeats its pagination control at both
     // the top and bottom of the table -- requiring an exact single match
     // would skip every candidate on such a page and make clickNext() always
     // report "no next page", stopping the scrape after page 1 regardless of
     // how many real pages exist. Any match is fine; clicking either the top
     // or bottom control has the same effect.
-    const count = await raw.count();
+    const count = await raw.count().catch(() => 0);
     if (count === 0) continue;
     const candidate = count === 1 ? raw : raw.first();
-    if (!(await candidate.isVisible().catch(() => false))) continue;
-    if (!(await candidate.isEnabled().catch(() => false))) continue;
+    const visible = await candidate.isVisible().catch(() => false);
+    const enabled = visible && (await candidate.isEnabled().catch(() => false));
+    diagnostics.push(`${label}: count=${count} visible=${visible} enabled=${enabled}`);
+    if (!visible || !enabled) continue;
     await Promise.all([
       page.waitForLoadState("domcontentloaded", { timeout: 20_000 }).catch(() => undefined),
       candidate.click(),
@@ -263,6 +287,10 @@ async function clickNext(page: Page): Promise<boolean> {
       .catch(() => undefined);
     return true;
   }
+  // Every candidate came back empty/hidden/disabled -- log exactly what was
+  // (and wasn't) found so the next attempt's logs say precisely why
+  // pagination stopped here, instead of leaving it to guesswork.
+  logger.warn({ pageNumber, diagnostics }, "clickNext: no working pagination control found");
   return false;
 }
 
@@ -307,7 +335,7 @@ export async function importAssistedSession(sessionId: string) {
       skipped += counts.skipped;
       failed += counts.failed;
 
-      if (!(await clickNext(session.page))) break;
+      if (!(await clickNext(session.page, pagesScanned))) break;
     }
 
     await prisma.scrapeRun.update({
