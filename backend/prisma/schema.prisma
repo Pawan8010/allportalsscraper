@@ -1,0 +1,99 @@
+// Prisma schema for the multi-portal tender platform.
+// Additive design: if you are migrating an existing database that already has
+// a "gem"-only Tender table, see docs/MIGRATION_NOTES.md for the backfill
+// steps that set portal='gem' on existing rows before the unique constraint
+// is applied, so no existing data is lost or orphaned.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tender {
+  id String @id @default(cuid())
+
+  // Identity
+  portal     String // registry key, e.g. "gem", "cppp", "maharashtra"
+  portalName String // display name, denormalised for fast reads without a join
+  tenderId   String // the portal's own reference / tender number
+
+  // Descriptive fields
+  title        String
+  organisation String?
+  department   String?
+  location     String?
+  state        String?
+  category     String?
+  description  String?
+
+  // Financial
+  estimatedValue Decimal? @db.Decimal(18, 2)
+  emdAmount      Decimal? @db.Decimal(18, 2)
+  tenderFee      Decimal? @db.Decimal(18, 2)
+
+  // Dates
+  publishedDate DateTime?
+  closingDate   DateTime?
+  openingDate   DateTime?
+  status        String?
+
+  // Links
+  tenderURL   String
+  documentURL String?
+  sourceUrl   String // canonical listing/detail URL this record was scraped from
+
+  // Scrape bookkeeping
+  sourceUpdatedAt DateTime? // the portal's own "last modified" timestamp, if exposed
+  lastSeenAt      DateTime  @default(now()) // bumped every time a scrape re-observes this row
+  lastSeenRunId   String? // FK-by-convention to ScrapeRun.id (not enforced, run rows can be pruned)
+  contentHash     String // sha256 of the normalised field set, used to skip no-op updates
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([portal, tenderId])
+  @@index([portal])
+  @@index([tenderId])
+  @@index([title])
+  @@index([organisation])
+  @@index([department])
+  @@index([state])
+  @@index([category])
+  @@index([publishedDate])
+  @@index([closingDate])
+  @@index([status])
+  @@index([lastSeenAt])
+}
+
+model ScrapeRun {
+  id     String @id @default(cuid())
+  portal String
+  mode   String // "full" | "incremental"
+  status String // "running" | "success" | "partial" | "failed" | "cancelled"
+
+  pagesScanned Int @default(0)
+  tendersFound Int @default(0)
+  inserted     Int @default(0)
+  updated      Int @default(0)
+  skipped      Int @default(0)
+  failed       Int @default(0)
+
+  // The portal's own reported total (e.g. GeM's "48445 records" count), when
+  // the adapter can read one. Null for portals (most GePNIC listings) that
+  // don't expose an overall count anywhere on the page -- never guessed.
+  statedTotal Int?
+
+  errorMessage String?
+  lastPage     Int? // checkpoint for resumable full scrapes
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([portal])
+  @@index([status])
+  @@index([startedAt])
+}

@@ -1,0 +1,54 @@
+# One-command local spin-up:
+#   docker compose up --build
+# Then open http://localhost:3000
+#
+# This does NOT run inside the sandbox this project was built in (no
+# outbound internet there for image pulls or npm installs -- see
+# docs/ENVIRONMENT_LIMITATIONS.md). Run it on your own machine, which has
+# normal internet access.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tender_app
+      POSTGRES_PASSWORD: change_me_locally
+      POSTGRES_DB: tender_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - tender_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tender_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tender_app:change_me_locally@db:5432/tender_platform?schema=public
+      PORT: 4000
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      PORTAL_SCRAPE_ENABLED: "true"
+    ports:
+      - "4000:4000"
+    command: sh -c "npx prisma migrate deploy && node dist/index.js"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+
+volumes:
+  tender_db_data:

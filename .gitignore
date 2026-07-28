@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.next/
+.next-old-*/
+.next-production/
+*.tsbuildinfo
+tmp/
+coverage/
+.env
+.env.local
+*.log
+server.out.log
+server.err.log
+web.out.log
+gem_body.html
+gem_headers.txt
+scratch.html
+start-backend.bat
+start-backend.ps1
+start-frontend.bat
+start-frontend.ps1
+
+# Local Claude Code tooling config/state -- not project source.
+.claude/
+
+# Local backup/export artifacts -- not source, redundant with git history.
+*.zip
