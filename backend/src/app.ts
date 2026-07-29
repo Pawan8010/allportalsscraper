@@ -8,6 +8,7 @@ import { scrapeRouter } from "./routes/scrape.routes";
 import { tendersRouter } from "./routes/tenders.routes";
 import { authRouter } from "./routes/auth.routes";
 import { adminRouter } from "./routes/admin.routes";
+import { alertsRouter } from "./routes/alerts.routes";
 import { requireAuth } from "./middleware/requireAuth";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
@@ -44,6 +45,7 @@ export function createApp() {
   // choice was to gate the whole dashboard, not just the new features.
   app.use("/api", requireAuth);
   app.use("/api", adminRouter);
+  app.use("/api", alertsRouter);
   app.use("/api", portalsRouter);
   // scrapeRouter applies scrapeTriggerLimiter itself, per-route, only on the
   // actual trigger endpoints -- app.use(path, middleware, router) would run

@@ -11,10 +11,11 @@ import {
   X,
   Users,
   LogOut,
+  BellRing,
 } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 
-export type View = "search" | "portals" | "activity" | "sessions";
+export type View = "search" | "portals" | "activity" | "alerts" | "sessions";
 
 interface NavItem {
   id: View;
@@ -41,6 +42,7 @@ const TITLES: Record<View, string> = {
   search: "Tender Search",
   portals: "Portal Status",
   activity: "Scrape Activity",
+  alerts: "Email Alerts",
   sessions: "Active Sessions",
 };
 
@@ -66,6 +68,7 @@ export default function AppShell({
     { id: "search", label: "Search", icon: Search, count: navCounts.search },
     { id: "portals", label: "Portals", icon: Radar, count: navCounts.portals },
     { id: "activity", label: "Activity", icon: History, count: navCounts.activity, live: activeRuns > 0 },
+    { id: "alerts", label: "Alerts", icon: BellRing },
   ];
   if (user?.role === "admin") {
     nav.push({ id: "sessions", label: "Sessions", icon: Users });

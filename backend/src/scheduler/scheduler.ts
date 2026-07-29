@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { scrapeNewEnabledPortals, scrapeAllEnabledPortals } from "../services/portalScrapeService";
 import { deleteExpiredTenders } from "../services/tenderCleanupService";
+import { runAlertCycle } from "../services/alertService";
 import { logger } from "../utils/logger";
 import { env } from "../config/env";
 
@@ -26,6 +27,9 @@ async function runIncrementalCycle(): Promise<void> {
     const results = await scrapeNewEnabledPortals();
     const failed = results.filter((r) => r.status === "failed");
     logger.info({ total: results.length, failed: failed.length }, "Scheduled incremental scrape cycle finished");
+    // Runs right after the scrape it depends on, using the same cadence --
+    // a failure here must never take down the scrape cycle it's piggybacking on.
+    await runAlertCycle().catch((err) => logger.error({ err: String(err) }, "alert cycle threw unexpectedly"));
   } catch (err) {
     logger.error({ err: String(err) }, "Scheduled incremental scrape cycle threw unexpectedly");
   } finally {

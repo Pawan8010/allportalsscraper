@@ -74,4 +74,12 @@ export const env = {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
+
+  // --- Email alerts ---
+  alertsEnabled: bool("ALERTS_ENABLED", false),
+  smtpHost: process.env.SMTP_HOST ?? "smtp.gmail.com",
+  smtpPort: num("SMTP_PORT", 465),
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpAppPassword: process.env.SMTP_APP_PASSWORD ?? "",
+  alertFromEmail: process.env.ALERT_FROM_EMAIL ?? process.env.SMTP_USER ?? "",
 };

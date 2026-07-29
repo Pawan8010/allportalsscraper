@@ -252,3 +252,31 @@ export interface AdminSession {
 export function getAdminSessions() {
   return apiFetch<{ sessions: AdminSession[]; count: number }>("/api/admin/sessions");
 }
+
+export interface AlertSubscription {
+  keywords: string[];
+  active: boolean;
+}
+
+export interface AlertHistoryEntry {
+  id: string;
+  portal: string;
+  tenderId: string;
+  title: string;
+  sentAt: string;
+}
+
+export function getAlertSubscription() {
+  return apiFetch<AlertSubscription>("/api/alerts/subscription");
+}
+
+export function saveAlertSubscription(keywords: string[], active: boolean) {
+  return apiFetch<AlertSubscription>("/api/alerts/subscription", {
+    method: "PUT",
+    body: JSON.stringify({ keywords, active }),
+  });
+}
+
+export function getAlertHistory() {
+  return apiFetch<{ history: AlertHistoryEntry[]; count: number }>("/api/alerts/history");
+}
