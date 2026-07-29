@@ -118,6 +118,30 @@ function clean(value: string | null | undefined): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
+// Common phrasings portals use to show an overall count somewhere on a
+// results page (DataTables' footer, a GridView/report header, etc). Tried in
+// order; the first match wins. Deliberately conservative -- an undetected
+// total leaves the honest "portal does not report a total" message rather
+// than risking a wrong number.
+const TOTAL_TEXT_PATTERNS: RegExp[] = [
+  /showing\s+[\d,]+\s+to\s+[\d,]+\s+of\s+([\d,]+)\s+entries/i,
+  /of\s+([\d,]+)\s+entries/i,
+  /total\s+(?:no\.?\s*of\s+)?(?:records?|results?|tenders?)\s*:?\s*([\d,]+)/i,
+  /([\d,]+)\s+records?\s+found/i,
+  /([\d,]+)\s+results?\s+found/i,
+  /([\d,]+)\s+tenders?\s+found/i,
+];
+
+function detectStatedTotal(bodyText: string): number | null {
+  for (const re of TOTAL_TEXT_PATTERNS) {
+    const match = bodyText.match(re);
+    if (!match) continue;
+    const n = Number(match[1].replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 // These evaluate() callbacks run inside the browser page, not this backend's
 // Node process -- the backend's tsconfig has no "dom" lib (it doesn't need
 // one anywhere else), so DOM element types aren't available here. `any` on
@@ -204,6 +228,7 @@ export async function getAssistedSessionStatus(sessionId: string) {
     portal: session.portal.key,
     url: session.page.url(),
     detectedTenders: tenders.length,
+    detectedTotal: detectStatedTotal(bodyText),
     captchaVisible,
     expiresAt: session.expiresAt.toISOString(),
   };
@@ -221,6 +246,30 @@ async function rowsSignature(page: Page): Promise<string> {
       .then((rows) => rows.join("|"))
       .catch(() => "")
   );
+}
+
+// Runs when every named candidate below draws a blank, to capture what the
+// real pagination markup actually looks like instead of leaving another
+// attempt guessing at selector names in the dark.
+async function paginationBroadScan(page: Page): Promise<string[]> {
+  return page
+    .evaluate(() => {
+      const doc = (globalThis as any).document;
+      const hints: string[] = [];
+      const all = Array.from(doc.querySelectorAll("a, button, span, div, li")) as any[];
+      for (const el of all) {
+        const cls = typeof el.className === "string" ? el.className : "";
+        const id = el.id ?? "";
+        const text = String(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 30);
+        const haystack = `${cls} ${id} ${text}`.toLowerCase();
+        if (text.length > 0 && text.length < 30 && /next|pagi|pager|page-link|»|>>|›/.test(haystack)) {
+          hints.push(`<${el.tagName.toLowerCase()} class="${cls}" id="${id}">${text}</>`);
+        }
+        if (hints.length >= 25) break;
+      }
+      return hints;
+    })
+    .catch(() => []);
 }
 
 async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
@@ -259,7 +308,14 @@ async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
     // how many real pages exist. Any match is fine; clicking either the top
     // or bottom control has the same effect.
     const count = await raw.count().catch(() => 0);
-    if (count === 0) continue;
+    if (count === 0) {
+      // Log the miss too, not just the near-hits -- when literally every
+      // candidate is a zero-count miss, the diagnostics array used to come
+      // back empty, telling us nothing (confirmed live, 29 Jul 2026: an
+      // IREPS run stopped after page 1 with `"diagnostics":[]`).
+      diagnostics.push(`${label}: count=0`);
+      continue;
+    }
     const candidate = count === 1 ? raw : raw.first();
     const visible = await candidate.isVisible().catch(() => false);
     const enabled = visible && (await candidate.isEnabled().catch(() => false));
@@ -289,8 +345,12 @@ async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
   }
   // Every candidate came back empty/hidden/disabled -- log exactly what was
   // (and wasn't) found so the next attempt's logs say precisely why
-  // pagination stopped here, instead of leaving it to guesswork.
-  logger.warn({ pageNumber, diagnostics }, "clickNext: no working pagination control found");
+  // pagination stopped here, instead of leaving it to guesswork. When every
+  // single one was a zero-count miss, also dump whatever *does* look
+  // pagination-related anywhere on the page, so the real markup is visible
+  // instead of another round of blind selector guessing.
+  const broadScan = diagnostics.every((d) => d.endsWith("count=0")) ? await paginationBroadScan(page) : [];
+  logger.warn({ pageNumber, diagnostics, broadScan }, "clickNext: no working pagination control found");
   return false;
 }
 
@@ -321,11 +381,19 @@ export async function importAssistedSession(sessionId: string) {
   let updated = 0;
   let skipped = 0;
   let failed = 0;
+  let statedTotal: number | null = null;
   const seenPages = new Set<string>();
-  
 
   try {
     while (pagesScanned < MAX_PAGES) {
+      // Look for the portal's own reported total once, on whichever page it
+      // first turns up (most portals only render it near the top of the
+      // results, but checking until found rather than only on page 1 costs
+      // nothing once statedTotal is set -- the check is skipped after that.
+      if (statedTotal === null) {
+        const bodyText = await session.page.locator("body").innerText().catch(() => "");
+        statedTotal = detectStatedTotal(bodyText);
+      }
       // Table-row text, not whole-page body text: pages with a lot of shared
       // header/nav chrome (menus, notices, search bar -- exactly what a real
       // government portal like IREPS has above its results table) can have
@@ -353,10 +421,20 @@ export async function importAssistedSession(sessionId: string) {
 
     await prisma.scrapeRun.update({
       where: { id: run.id },
-      data: { status: "success", pagesScanned, tendersFound: found, inserted, updated, skipped, failed, finishedAt: new Date() },
+      data: {
+        status: "success",
+        pagesScanned,
+        tendersFound: found,
+        inserted,
+        updated,
+        skipped,
+        failed,
+        statedTotal: statedTotal ?? undefined,
+        finishedAt: new Date(),
+      },
     });
 
-    return { runId: run.id, portal: session.portal.key, pagesScanned, found, inserted, updated, skipped };
+    return { runId: run.id, portal: session.portal.key, pagesScanned, found, inserted, updated, skipped, statedTotal };
   } catch (err) {
     logger.error({ err: String(err), portal: session.portal.key }, "assisted import failed");
     await prisma.scrapeRun.update({
