@@ -86,7 +86,12 @@ tendersRouter.get("/tenders/stats", async (_req, res, next) => {
     });
     const newToday = await prisma.tender.count({ where: { createdAt: { gte: startOfToday } } });
     const keywordMatches = await prisma.tender.count({
-      where: { OR: STATS_KEYWORDS.map((k) => ({ title: { contains: k, mode: "insensitive" as const } })) },
+      where: {
+        AND: [
+          { OR: STATS_KEYWORDS.map((k) => ({ title: { contains: k, mode: "insensitive" as const } })) },
+          { OR: [{ closingDate: null }, { closingDate: { gte: now } }] },
+        ],
+      },
     });
 
     const lastRunOverall = await prisma.scrapeRun.findFirst({

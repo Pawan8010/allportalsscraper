@@ -56,7 +56,11 @@ export async function searchTenders(params: SearchParams) {
     ? [params.portal]
     : [];
 
-  const conditions: Prisma.Sql[] = [];
+  // A tender past its own closing date is no longer something anyone can
+  // act on -- never surfaced in browse or search results, regardless of
+  // what else is filtered on. Tenders with no known closing date (a real
+  // gap on some portals) are kept rather than guessed away.
+  const conditions: Prisma.Sql[] = [Prisma.sql`("closingDate" IS NULL OR "closingDate" >= NOW())`];
   if (portalFilter.length > 0) {
     conditions.push(Prisma.sql`portal IN (${Prisma.join(portalFilter)})`);
   }
