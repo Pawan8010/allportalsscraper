@@ -92,6 +92,17 @@ export async function upsertTenders(
         where: { portal_tenderId: { portal: t.portal, tenderId: t.tenderId } },
       });
 
+      // A tender whose own scraped closingDate is already in the past is
+      // never stored as a brand-new row -- otherwise a portal that keeps
+      // listing a closed tender for a while would just get it re-inserted
+      // on every later scrape, right after the cleanup job deletes it.
+      // Rows already in the DB keep updating normally; the cleanup job
+      // (tenderCleanupService.ts) removes those on its own schedule.
+      if (!existing && fields.closingDate && fields.closingDate < new Date()) {
+        skipped++;
+        continue;
+      }
+
       if (existing && existing.contentHash === contentHash) {
         // Nothing changed — just bump lastSeenAt/lastSeenRunId, no full write.
         await prisma.tender.update({

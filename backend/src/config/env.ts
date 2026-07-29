@@ -57,4 +57,10 @@ export const env = {
     const envKey = `PORTAL_${key.toUpperCase()}_ENABLED`;
     return bool(envKey, fallback);
   },
+
+  // Permanently deletes tenders past their own closingDate -- separate from
+  // the incremental/full scrape schedules since it never touches a portal.
+  tenderCleanupEnabled: bool("TENDER_CLEANUP_ENABLED", true),
+  tenderCleanupCron: process.env.TENDER_CLEANUP_CRON ?? "30 3 * * *",
+  tenderCleanupGraceDays: num("TENDER_CLEANUP_GRACE_DAYS", 0),
 };

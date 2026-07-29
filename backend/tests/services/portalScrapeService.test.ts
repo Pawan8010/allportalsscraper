@@ -23,6 +23,7 @@ jest.mock("../../src/services/prisma", () => ({
       findUnique: jest.fn(async () => null),
       upsert: jest.fn(async () => ({})),
       update: jest.fn(async () => ({})),
+      deleteMany: jest.fn(async () => ({ count: 0 })),
     },
   },
   disconnectPrisma: jest.fn(),
@@ -66,7 +67,8 @@ jest.mock("../../src/portals/portalRegistry", () => {
 });
 
 import { getPortalEntry, getEnabledPortals } from "../../src/portals/portalRegistry";
-import { scrapePortal, scrapeAllEnabledPortals } from "../../src/services/portalScrapeService";
+import { scrapePortal, scrapeAllEnabledPortals, upsertTenders } from "../../src/services/portalScrapeService";
+import { prisma } from "../../src/services/prisma";
 
 describe("portalScrapeService failure isolation", () => {
   beforeEach(() => {
@@ -148,5 +150,63 @@ describe("portalScrapeService failure isolation", () => {
 
     resolveScrape!();
     await first;
+  });
+});
+
+describe("upsertTenders — closed-tender resurrection guard", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.tender.findUnique as jest.Mock).mockResolvedValue(null);
+  });
+
+  it("never inserts a brand-new tender whose own closingDate is already in the past", async () => {
+    const pastClosing = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const counts = await upsertTenders(
+      [
+        {
+          portal: "gem",
+          tenderId: "already-closed-1",
+          title: "Already closed",
+          tenderURL: "https://example.invalid/1",
+          closingDate: pastClosing,
+        },
+      ],
+      "Government e-Marketplace",
+      "run-1"
+    );
+
+    expect(counts).toEqual({ inserted: 0, updated: 0, skipped: 1, failed: 0 });
+    expect(prisma.tender.upsert).not.toHaveBeenCalled();
+  });
+
+  it("still inserts a brand-new tender whose closingDate is in the future", async () => {
+    const futureClosing = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const counts = await upsertTenders(
+      [
+        {
+          portal: "gem",
+          tenderId: "still-open-1",
+          title: "Still open",
+          tenderURL: "https://example.invalid/2",
+          closingDate: futureClosing,
+        },
+      ],
+      "Government e-Marketplace",
+      "run-1"
+    );
+
+    expect(counts).toEqual({ inserted: 1, updated: 0, skipped: 0, failed: 0 });
+    expect(prisma.tender.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("still inserts a brand-new tender with no known closingDate at all", async () => {
+    const counts = await upsertTenders(
+      [{ portal: "gem", tenderId: "no-date-1", title: "No date", tenderURL: "https://example.invalid/3" }],
+      "Government e-Marketplace",
+      "run-1"
+    );
+
+    expect(counts).toEqual({ inserted: 1, updated: 0, skipped: 0, failed: 0 });
+    expect(prisma.tender.upsert).toHaveBeenCalledTimes(1);
   });
 });

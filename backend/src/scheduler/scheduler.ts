@@ -1,12 +1,15 @@
 import cron from "node-cron";
 import { scrapeNewEnabledPortals, scrapeAllEnabledPortals } from "../services/portalScrapeService";
+import { deleteExpiredTenders } from "../services/tenderCleanupService";
 import { logger } from "../utils/logger";
 import { env } from "../config/env";
 
 let incrementalTask: cron.ScheduledTask | null = null;
 let fullTask: cron.ScheduledTask | null = null;
+let cleanupTask: cron.ScheduledTask | null = null;
 let incrementalRunning = false;
 let fullRunning = false;
+let cleanupRunning = false;
 
 async function runIncrementalCycle(): Promise<void> {
   if (incrementalRunning) {
@@ -48,6 +51,22 @@ async function runFullCycle(): Promise<void> {
   }
 }
 
+async function runCleanupCycle(): Promise<void> {
+  if (cleanupRunning) {
+    logger.warn("Scheduled tender cleanup skipped — previous cleanup still running");
+    return;
+  }
+  cleanupRunning = true;
+  try {
+    const deleted = await deleteExpiredTenders();
+    logger.info({ deleted }, "Scheduled tender cleanup finished");
+  } catch (err) {
+    logger.error({ err: String(err) }, "Scheduled tender cleanup threw unexpectedly");
+  } finally {
+    cleanupRunning = false;
+  }
+}
+
 export function startScheduler(): void {
   if (!env.portalScrapeEnabled) {
     logger.info("PORTAL_SCRAPE_ENABLED=false — scheduler not started");
@@ -71,11 +90,22 @@ export function startScheduler(): void {
     logger.info("Running an initial incremental scrape on startup");
     void runIncrementalCycle();
   }
+
+  if (!env.tenderCleanupEnabled) {
+    logger.info("TENDER_CLEANUP_ENABLED=false — cleanup scheduler not started");
+  } else if (!cron.validate(env.tenderCleanupCron)) {
+    logger.error({ cron: env.tenderCleanupCron }, "invalid TENDER_CLEANUP_CRON expression, cleanup scheduler not started");
+  } else {
+    cleanupTask = cron.schedule(env.tenderCleanupCron, () => void runCleanupCycle());
+    logger.info({ cron: env.tenderCleanupCron }, "Tender cleanup scheduler started");
+  }
 }
 
 export function stopScheduler(): void {
   incrementalTask?.stop();
   fullTask?.stop();
+  cleanupTask?.stop();
   incrementalTask = null;
   fullTask = null;
+  cleanupTask = null;
 }
