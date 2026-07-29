@@ -10,3 +10,13 @@ export const scrapeTriggerLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "rate_limited", message: "Too many scrape requests, slow down." },
 });
+
+// Sign-up is public and login is a natural credential-stuffing target --
+// both need a tighter cap than the scrape-trigger routes.
+export const authLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "rate_limited", message: "Too many attempts, slow down." },
+});

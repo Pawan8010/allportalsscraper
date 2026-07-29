@@ -19,6 +19,7 @@ import PortalFilter from "@/components/PortalFilter";
 import TenderCard from "@/components/TenderCard";
 import PortalStatusPanel from "@/components/PortalStatusPanel";
 import ScrapeProgressTable from "@/components/ScrapeProgressTable";
+import SessionsPanel from "@/components/SessionsPanel";
 import Pagination from "@/components/Pagination";
 import { SkeletonTenderList } from "@/components/Skeleton";
 
@@ -347,6 +348,8 @@ export default function HomePage() {
           <ScrapeProgressTable runs={runs} loading={runsLoading} error={runsError} />
         </div>
       )}
+
+      {tab === "sessions" && <SessionsPanel />}
     </AppShell>
   );
 }

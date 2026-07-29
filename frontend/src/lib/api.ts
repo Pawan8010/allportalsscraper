@@ -20,6 +20,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...init,
+      // The whole API now sits behind a login session cookie -- without
+      // this, the browser never sends it cross-origin (frontend :3001,
+      // backend :4001) and every request would 401 regardless of login.
+      credentials: "include",
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     });
   } catch (err) {
@@ -210,4 +214,41 @@ export function searchTenders(
 
 export function getHealth() {
   return apiFetch<{ status: string; database: string }>("/health");
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: string;
+}
+
+export function registerAccount(email: string, password: string) {
+  return apiFetch<AuthUser>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function login(email: string, password: string) {
+  return apiFetch<AuthUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function logout() {
+  return apiFetch<{ loggedOut: boolean }>("/api/auth/logout", { method: "POST" });
+}
+
+export function getCurrentUser() {
+  return apiFetch<AuthUser>("/api/auth/me");
+}
+
+export interface AdminSession {
+  id: string;
+  email: string;
+  role: string;
+  ipAddress: string | null;
+  active: boolean;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+}
+
+export function getAdminSessions() {
+  return apiFetch<{ sessions: AdminSession[]; count: number }>("/api/admin/sessions");
 }

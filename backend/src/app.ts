@@ -1,16 +1,21 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { env } from "./config/env";
 import { healthRouter } from "./routes/health.routes";
 import { portalsRouter } from "./routes/portals.routes";
 import { scrapeRouter } from "./routes/scrape.routes";
 import { tendersRouter } from "./routes/tenders.routes";
+import { authRouter } from "./routes/auth.routes";
+import { adminRouter } from "./routes/admin.routes";
+import { requireAuth } from "./middleware/requireAuth";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 export function createApp() {
   const app = express();
 
   app.use(express.json());
+  app.use(cookieParser());
 
   app.use(
     cors({
@@ -23,10 +28,22 @@ export function createApp() {
         }
         return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
       },
+      // Session cookies only work cross-origin (frontend on :3001, backend
+      // on :4001) if the browser is told it's allowed to send them -- the
+      // strict origin allowlist above is what keeps this safe, never `*`.
+      credentials: true,
     })
   );
 
   app.use(healthRouter);
+  // Unauthenticated: signing up and logging in obviously can't require
+  // being logged in first.
+  app.use("/api", authRouter);
+
+  // Everything else requires a logged-in session -- the user's explicit
+  // choice was to gate the whole dashboard, not just the new features.
+  app.use("/api", requireAuth);
+  app.use("/api", adminRouter);
   app.use("/api", portalsRouter);
   // scrapeRouter applies scrapeTriggerLimiter itself, per-route, only on the
   // actual trigger endpoints -- app.use(path, middleware, router) would run

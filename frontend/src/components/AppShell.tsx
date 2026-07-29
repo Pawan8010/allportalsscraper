@@ -9,9 +9,12 @@ import {
   ShieldCheck,
   Menu,
   X,
+  Users,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/lib/authContext";
 
-export type View = "search" | "portals" | "activity";
+export type View = "search" | "portals" | "activity" | "sessions";
 
 interface NavItem {
   id: View;
@@ -38,6 +41,7 @@ const TITLES: Record<View, string> = {
   search: "Tender Search",
   portals: "Portal Status",
   activity: "Scrape Activity",
+  sessions: "Active Sessions",
 };
 
 function fmt(n: number) {
@@ -56,12 +60,16 @@ export default function AppShell({
   children,
 }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   const nav: NavItem[] = [
     { id: "search", label: "Search", icon: Search, count: navCounts.search },
     { id: "portals", label: "Portals", icon: Radar, count: navCounts.portals },
     { id: "activity", label: "Activity", icon: History, count: navCounts.activity, live: activeRuns > 0 },
   ];
+  if (user?.role === "admin") {
+    nav.push({ id: "sessions", label: "Sessions", icon: Users });
+  }
 
   function pick(v: View) {
     onViewChange(v);
@@ -118,6 +126,16 @@ export default function AppShell({
             <span className="live-dot" />
             {activeRuns > 0 ? `${activeRuns} portal${activeRuns === 1 ? "" : "s"} scraping` : "Idle"}
           </div>
+          {user && (
+            <div className="user-menu">
+              <span className="user-email" title={user.email}>
+                {user.email}
+              </span>
+              <button className="icon-btn" onClick={() => void logout()} aria-label="Log out" title="Log out">
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
