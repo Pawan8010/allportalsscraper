@@ -25,3 +25,7 @@ start-frontend.ps1
 
 # Local backup/export artifacts -- not source, redundant with git history.
 *.zip
+
+# Local database backups -- will contain password hashes/emails once real
+# users exist, must never be committed.
+backend/backups/

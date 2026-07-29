@@ -82,4 +82,9 @@ export const env = {
   smtpUser: process.env.SMTP_USER ?? "",
   smtpAppPassword: process.env.SMTP_APP_PASSWORD ?? "",
   alertFromEmail: process.env.ALERT_FROM_EMAIL ?? process.env.SMTP_USER ?? "",
+
+  // --- Local backups ---
+  backupEnabled: bool("BACKUP_ENABLED", true),
+  backupCron: process.env.BACKUP_CRON ?? "0 4 * * *",
+  backupRetentionDays: num("BACKUP_RETENTION_DAYS", 14),
 };

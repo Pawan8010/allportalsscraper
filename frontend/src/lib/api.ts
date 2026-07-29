@@ -283,3 +283,17 @@ export function saveAlertSubscription(keywords: string[], active: boolean) {
 export function getAlertHistory() {
   return apiFetch<{ history: AlertHistoryEntry[]; count: number }>("/api/alerts/history");
 }
+
+export interface BackupSummary {
+  name: string;
+  createdAt: string;
+  sizeBytes: number;
+}
+
+export function getBackups() {
+  return apiFetch<{ backups: BackupSummary[]; count: number }>("/api/admin/backups");
+}
+
+export function runBackupNow() {
+  return apiFetch<{ dir: string; counts: Record<string, number> }>("/api/admin/backups/run", { method: "POST" });
+}
