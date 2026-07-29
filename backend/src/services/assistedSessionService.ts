@@ -298,6 +298,19 @@ export async function importAssistedSession(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session) throw new AssistedSessionError("Assisted session was not found or has expired.", 404);
 
+  // The 30-minute expiry timer exists to reclaim a browser a human opened
+  // and then abandoned -- it must not still be armed once a real import is
+  // under way. IREPS alone has 21,747+ results across hundreds to
+  // thousands of pages, so walking every page (plus whatever time was
+  // already spent solving the CAPTCHA/OTP before import was even called)
+  // routinely takes well over 30 minutes. Left armed, the timer fires
+  // mid-loop and force-closes the browser out from under the in-progress
+  // Playwright calls, surfacing as "locator.evaluateAll: Target page,
+  // context or browser has been closed" (confirmed live, 29 Jul 2026) --
+  // not a pagination-selector bug, a session-lifetime one. MAX_PAGES and
+  // clickNext()'s own per-page timeouts remain as the real upper bounds.
+  clearTimeout(session.expiryTimer);
+
   const run = await prisma.scrapeRun.create({
     data: { portal: session.portal.key, mode: "assisted", status: "running" },
   });
@@ -352,8 +365,8 @@ export async function importAssistedSession(sessionId: string) {
     });
     throw err;
   } finally {
+    // expiryTimer was already cleared before the loop started, above.
     sessions.delete(sessionId);
-    clearTimeout(session.expiryTimer);
     const delayedClose = setTimeout(() => {
       void session.context.close().catch(() => undefined);
       void session.browser.close().catch(() => undefined);
