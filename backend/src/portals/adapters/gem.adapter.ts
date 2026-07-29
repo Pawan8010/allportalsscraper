@@ -157,13 +157,18 @@ export const gemAdapter: PortalAdapter = {
     const session = await fetchSession();
     const first = await fetchPage(session, 1);
     const maxAvailablePages = Math.max(1, Math.ceil(first.numFound / PAGE_SIZE));
-    // GeM alone reports 48,000+ live bids (4,800+ pages) -- sweeping all of
-    // them by default would make one scrape-all call hammer a public
-    // government API for the better part of an hour. Default to a bounded
-    // sweep, same as the GePNIC adapters' own default; pass options.maxPages
-    // explicitly for a deeper one-off sweep.
-    const DEFAULT_MAX_PAGES = 50;
-    const maxPages = Math.min(options.maxPages ?? DEFAULT_MAX_PAGES, maxAvailablePages);
+    // "Full" means full: GeM alone reports 48,000+ live bids (4,800+ pages),
+    // but a default cap here silently meant "Scrape All" never actually
+    // reached more than the newest ~500 -- confirmed live 29 Jul 2026 (a
+    // "successful" full sweep repeatedly re-fetched the same 50 pages,
+    // 0 new inserts every time). Matches how every GePNIC-family adapter
+    // already behaves (unbounded by default, options.maxPages only used to
+    // deliberately narrow a run). The existing gemApiRequestDelayMs/
+    // gemApiConcurrency throttling is what keeps this respectful of GeM's
+    // public API, not an artificial page ceiling that defeats the point of
+    // a full sweep. scrapeNew() below still passes maxPages: 1 explicitly
+    // for the fast hourly incremental check.
+    const maxPages = Math.min(options.maxPages ?? maxAvailablePages, maxAvailablePages);
 
     const all: PortalTender[] = mapGemBidPage(first.docs);
     options.onProgress?.({ pagesScanned: 1, tendersFound: all.length, statedTotal: first.numFound });
