@@ -40,6 +40,7 @@ export default function HomePage() {
 
   const [selectedPortals, setSelectedPortals] = useState<string[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [selectedRelevance, setSelectedRelevance] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -124,6 +125,7 @@ export default function HomePage() {
           q: debouncedQuery || undefined,
           portals: selectedPortals.length ? selectedPortals : undefined,
           keywords: selectedKeywords.length ? selectedKeywords : undefined,
+          relevance: selectedRelevance,
           page,
         },
         controller.signal
@@ -140,7 +142,7 @@ export default function HomePage() {
     } finally {
       if (abortRef.current === controller) setSearchLoading(false);
     }
-  }, [debouncedQuery, selectedPortals, selectedKeywords, page]);
+  }, [debouncedQuery, selectedPortals, selectedKeywords, selectedRelevance, page]);
 
   const refreshAll = useCallback(
     (opts: { silent?: boolean } = {}) => {
@@ -296,6 +298,30 @@ export default function HomePage() {
                 setSelectedPortals(keys);
               }}
             />
+
+            <div style={{ marginTop: 12 }}>
+              <div className="section-title">Relevance</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {[
+                  { id: undefined, label: "All" },
+                  { id: "relevant", label: "Relevant" },
+                  { id: "irrelevant", label: "Parts/Non-defence" },
+                  { id: "unclassified", label: "Unclassified" },
+                ].map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    className={`chip ${selectedRelevance === opt.id ? "active" : ""}`}
+                    onClick={() => {
+                      setPage(1);
+                      setSelectedRelevance(opt.id);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="card">

@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { PORTAL_REGISTRY, getPortalEntry, getEnabledPortals } from "../portals/portalRegistry";
 import { PortalTender, ScrapeOptions } from "../portals/portal.types";
 import { computeContentHash } from "../utils/hash";
+import { classifyRelevance } from "../utils/relevance";
 import { logger } from "../utils/logger";
 import { env } from "../config/env";
 
@@ -48,17 +49,24 @@ export async function reconcileOrphanedRuns(): Promise<number> {
 }
 
 function tenderToFields(t: PortalTender, portalName: string) {
+  const organisation = t.organisation ?? null;
+  const department = t.department ?? null;
+  const category = t.category ?? null;
   return {
     portal: t.portal,
     portalName,
     tenderId: t.tenderId,
     title: t.title,
-    organisation: t.organisation ?? null,
-    department: t.department ?? null,
+    organisation,
+    department,
     location: t.location ?? null,
     state: t.state ?? null,
-    category: t.category ?? null,
+    category,
     description: t.description ?? null,
+    // Computed once at scrape time so it's included in what
+    // computeContentHash() hashes and what gets upserted -- every future
+    // scrape classifies automatically, no separate batch step needed.
+    relevance: classifyRelevance({ title: t.title, category, organisation, department }),
     estimatedValue: t.estimatedValue ?? null,
     emdAmount: t.emdAmount ?? null,
     tenderFee: t.tenderFee ?? null,

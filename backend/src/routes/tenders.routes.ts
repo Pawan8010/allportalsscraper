@@ -31,6 +31,7 @@ tendersRouter.get("/tenders/search", async (req, res, next) => {
     const portals = parseListParam(req.query.portals);
     const keywords = parseListParam(req.query.keywords);
     const status = req.query.status ? String(req.query.status) : undefined;
+    const relevance = req.query.relevance ? String(req.query.relevance) : undefined;
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
     const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
@@ -42,7 +43,18 @@ tendersRouter.get("/tenders/search", async (req, res, next) => {
     // /api/tenders/stats. Every search request was paying for 1 + 22 extra
     // queries (getPortalCounts + one scrapeRun lookup per registry entry)
     // for data no one used.
-    const { rows, total } = await searchTenders({ q, portal, portals, keywords, status, page, limit, fromDate, toDate });
+    const { rows, total } = await searchTenders({
+      q,
+      portal,
+      portals,
+      keywords,
+      status,
+      relevance,
+      page,
+      limit,
+      fromDate,
+      toDate,
+    });
 
     res.json({
       data: rows,

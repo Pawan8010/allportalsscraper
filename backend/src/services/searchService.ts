@@ -8,6 +8,7 @@ export interface SearchParams {
   portals?: string[];
   keywords?: string[];
   status?: string;
+  relevance?: string;
   page?: number;
   limit?: number;
   fromDate?: string;
@@ -25,6 +26,7 @@ export interface SearchResultRow {
   state: string | null;
   category: string | null;
   status: string | null;
+  relevance: string | null;
   publishedDate: Date | null;
   closingDate: Date | null;
   tenderURL: string;
@@ -67,6 +69,9 @@ export async function searchTenders(params: SearchParams) {
   if (params.status) {
     conditions.push(Prisma.sql`status = ${params.status}`);
   }
+  if (params.relevance) {
+    conditions.push(Prisma.sql`relevance = ${params.relevance}`);
+  }
   if (params.fromDate) {
     conditions.push(Prisma.sql`"closingDate" >= ${new Date(params.fromDate)}`);
   }
@@ -86,7 +91,7 @@ export async function searchTenders(params: SearchParams) {
     // same predicate -- one scan instead of two, which matters once the
     // table holds 100k+ rows.
     const rows = await prisma.$queryRaw<(SearchResultRow & { total_count: bigint })[]>(Prisma.sql`
-      SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, "publishedDate", "closingDate", "tenderURL",
+      SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, relevance, "publishedDate", "closingDate", "tenderURL",
         0 AS rank, COUNT(*) OVER() AS total_count
       FROM "Tender"
       ${where}
@@ -116,7 +121,7 @@ export async function searchTenders(params: SearchParams) {
       ? Prisma.sql`+ COALESCE(similarity(title, ${normalized}), 0) * 10`
       : Prisma.sql``;
     const rows = await prisma.$queryRaw<(SearchResultRow & { total_count: bigint })[]>(Prisma.sql`
-      SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, "publishedDate", "closingDate", "tenderURL",
+      SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, relevance, "publishedDate", "closingDate", "tenderURL",
         (
           CASE WHEN lower("tenderId") = ${normalized} THEN 1000 ELSE 0 END +
           CASE WHEN lower(title) = ${normalized} THEN 500 ELSE 0 END +

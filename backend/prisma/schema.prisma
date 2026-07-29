@@ -29,6 +29,9 @@ model Tender {
   state        String?
   category     String?
   description  String?
+  // Heuristic relevance tag ("relevant" | "irrelevant" | "unclassified"),
+  // computed at scrape time by classifyRelevance() -- see relevance.ts.
+  relevance    String?
 
   // Financial
   estimatedValue Decimal? @db.Decimal(18, 2)
@@ -63,6 +66,7 @@ model Tender {
   @@index([department])
   @@index([state])
   @@index([category])
+  @@index([relevance])
   @@index([publishedDate])
   @@index([closingDate])
   @@index([status])

@@ -59,7 +59,11 @@ export default function TenderCard({ tender }: { tender: TenderRow }) {
     <div className={`tender-card ${urgency ? `urgency-${urgency}` : ""}`}>
       <div className="tender-card-top">
         <div className="tender-card-heading">
-          <div className="tender-id">{tender.tenderId}</div>
+          <div className="tender-id">
+            {tender.tenderId}
+            {tender.relevance === "relevant" && <span className="badge success">Relevant</span>}
+            {tender.relevance === "irrelevant" && <span className="badge muted">Parts/Non-defence</span>}
+          </div>
           <h3 className={expanded ? "" : "clamp"}>{tender.title}</h3>
           {isLong && (
             <button type="button" className="expand-toggle" onClick={() => setExpanded((v) => !v)}>

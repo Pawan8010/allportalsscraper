@@ -180,6 +180,7 @@ export interface TenderRow {
   state: string | null;
   category: string | null;
   status: string | null;
+  relevance: string | null;
   publishedDate: string | null;
   closingDate: string | null;
   tenderURL: string;
@@ -198,6 +199,7 @@ export function searchTenders(
     q?: string;
     portals?: string[];
     keywords?: string[];
+    relevance?: string;
     page?: number;
     limit?: number;
   },
@@ -207,6 +209,7 @@ export function searchTenders(
   if (params.q) qs.set("q", params.q);
   if (params.portals?.length) qs.set("portals", params.portals.join(","));
   if (params.keywords?.length) qs.set("keywords", params.keywords.join(","));
+  if (params.relevance) qs.set("relevance", params.relevance);
   qs.set("page", String(params.page ?? 1));
   qs.set("limit", String(params.limit ?? PAGE_SIZE));
   return apiFetch<SearchResponse>(`/api/tenders/search?${qs.toString()}`, { signal });
