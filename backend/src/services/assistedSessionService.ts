@@ -262,7 +262,7 @@ async function paginationBroadScan(page: Page): Promise<string[]> {
         const id = el.id ?? "";
         const text = String(el.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 30);
         const haystack = `${cls} ${id} ${text}`.toLowerCase();
-        if (text.length > 0 && text.length < 30 && /next|pagi|pager|page-link|»|>>|›/.test(haystack)) {
+        if (text.length > 0 && text.length < 30 && /next|pagi|pager|page-link|more|»|>>|›|❯|▶|→/.test(haystack)) {
           hints.push(`<${el.tagName.toLowerCase()} class="${cls}" id="${id}">${text}</>`);
         }
         if (hints.length >= 25) break;
@@ -280,8 +280,8 @@ async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
     { label: "bootstrap li.next", locator: page.locator("li.page-item.next:not(.disabled) a.page-link") },
     { label: "aria-label next page", locator: page.locator('button[aria-label*="next page" i]:not([disabled])') },
     { label: "[class*=pagination] next", locator: page.locator('[class*="pagination"] [class*="next"]:not(.disabled) a') },
-    { label: "role=link next", locator: page.getByRole("link", { name: /^(next|next page|»|>>|>)$/i }) },
-    { label: "role=button next", locator: page.getByRole("button", { name: /^(next|next page|»|>>|>)$/i }) },
+    { label: "role=link next", locator: page.getByRole("link", { name: /^(next|next page|show more|load more|»|>>|›|❯|▶|→|>)$/i }) },
+    { label: "role=button next", locator: page.getByRole("button", { name: /^(next|next page|show more|load more|»|>>|›|❯|▶|→|>)$/i }) },
     { label: "rel=next", locator: page.locator('a[rel="next"]') },
     // Classic ASP.NET WebForms GridView pagination: a postback link whose
     // __EVENTARGUMENT is literally "Next" (or "Page$Next"), or a plain link
@@ -354,6 +354,41 @@ async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
   return false;
 }
 
+// Fallback for grids with no click-based "next page" control at all --
+// confirmed live, 29 Jul 2026: an IREPS session had visibly more tenders
+// below what was imported, yet every named click candidate AND a broad
+// scan of every clickable-looking element on the page found nothing
+// pagination-related whatsoever. ROW_SELECTOR already targets Angular
+// Material's mat-row/.mat-row classes (an earlier inspection's finding),
+// and Angular's CDK virtual-scroll grids render more rows as the user
+// scrolls rather than exposing any pagination affordance in the DOM at
+// all -- which fits every symptom observed. Scrolling the last rendered
+// row into view is the generic, framework-agnostic way to trigger that
+// kind of lazy rendering without needing to know the grid's exact
+// internals.
+async function tryScrollForMore(page: Page): Promise<boolean> {
+  const previousRows = await rowsSignature(page);
+  const rowLocator = page.locator(ROW_SELECTOR);
+  if ((await rowLocator.count().catch(() => 0)) === 0) return false;
+  await rowLocator.last().scrollIntoViewIfNeeded().catch(() => undefined);
+  await page.mouse.wheel(0, 3000).catch(() => undefined);
+  return page
+    .waitForFunction(
+      ({ selector, previous }: { selector: string; previous: string }) => {
+        const current = Array.from((globalThis as any).document.querySelectorAll(selector))
+          .map((el: any) => el.textContent ?? "")
+          .join("|")
+          .replace(/\s+/g, " ")
+          .trim();
+        return Boolean(current) && current !== previous;
+      },
+      { selector: ROW_SELECTOR, previous: previousRows },
+      { timeout: 4_000 }
+    )
+    .then(() => true)
+    .catch(() => false);
+}
+
 export async function importAssistedSession(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session) throw new AssistedSessionError("Assisted session was not found or has expired.", 404);
@@ -416,7 +451,11 @@ export async function importAssistedSession(sessionId: string) {
       skipped += counts.skipped;
       failed += counts.failed;
 
-      if (!(await clickNext(session.page, pagesScanned))) break;
+      // Try a click-based "next page" first; if the grid has no such
+      // control (nothing found anywhere on the page), fall back to
+      // scrolling for a virtual-scroll grid before concluding there's
+      // really nothing more to load.
+      if (!(await clickNext(session.page, pagesScanned)) && !(await tryScrollForMore(session.page))) break;
     }
 
     await prisma.scrapeRun.update({

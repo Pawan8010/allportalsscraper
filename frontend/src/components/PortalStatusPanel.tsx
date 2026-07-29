@@ -36,6 +36,11 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
   const [assistedSessions, setAssistedSessions] = useState<Record<string, AssistedSessionStatus>>({});
   const [assistedBusy, setAssistedBusy] = useState<string | null>(null);
   const pollTimers = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  // Tracks portals whose visible rows have already triggered an automatic
+  // import, so a session that keeps polling after import started (or whose
+  // rows flicker between 0 and >0 while the portal's own page re-renders)
+  // can't fire a second overlapping import for the same session.
+  const autoImported = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const timers = pollTimers.current;
@@ -50,6 +55,18 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
       try {
         const status = await getAssistedSessionStatus(sessionId);
         setAssistedSessions((prev) => ({ ...prev, [portalKey]: status }));
+
+        // The human's only manual step is solving the CAPTCHA -- once it's
+        // gone and real rows are on screen, import right away instead of
+        // waiting for a separate button click. Guarded by autoImported so
+        // a session isn't imported twice if rows are still visible on the
+        // next poll tick while the first import is already in flight.
+        if (!status.captchaVisible && status.detectedTenders > 0 && !autoImported.current.has(portalKey)) {
+          autoImported.current.add(portalKey);
+          clearInterval(pollTimers.current[portalKey]);
+          delete pollTimers.current[portalKey];
+          void handleImportAssisted(portalKey, sessionId);
+        }
       } catch {
         clearInterval(pollTimers.current[portalKey]);
         delete pollTimers.current[portalKey];
@@ -78,8 +95,9 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
       const session = await startAssistedSession(key);
       const status = await getAssistedSessionStatus(session.sessionId);
       setAssistedSessions((prev) => ({ ...prev, [key]: status }));
+      autoImported.current.delete(key);
       pollSession(key, session.sessionId);
-      toast.info("Browser window opened — solve the CAPTCHA there, then come back and click Import Pages.");
+      toast.info("Browser window opened — solve the CAPTCHA there. Results import automatically once it's gone.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open assisted session");
     } finally {
@@ -87,23 +105,26 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
     }
   }
 
-  async function handleImportAssisted(key: string) {
-    const session = assistedSessions[key];
-    if (!session) return;
+  async function handleImportAssisted(key: string, sessionIdOverride?: string) {
+    const sessionId = sessionIdOverride ?? assistedSessions[key]?.sessionId;
+    if (!sessionId) return;
     setAssistedBusy(key);
     try {
-      const result = await importAssistedSession(session.sessionId);
+      const result = await importAssistedSession(sessionId);
       clearInterval(pollTimers.current[key]);
       delete pollTimers.current[key];
+      autoImported.current.delete(key);
       setAssistedSessions((prev) => {
         const next = { ...prev };
         delete next[key];
         return next;
       });
-      toast.success(`Imported ${result.found} tender(s) from ${result.pagesScanned} page(s).`);
+      const totalNote = result.statedTotal ? ` (portal reports ${result.statedTotal.toLocaleString("en-IN")} total)` : "";
+      toast.success(`Imported ${result.found} tender(s) from ${result.pagesScanned} page(s)${totalNote}.`);
       onScrapeTriggered();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to import visible tenders");
+      autoImported.current.delete(key); // allow another attempt (manual or auto) after a failure
     } finally {
       setAssistedBusy(null);
     }
@@ -120,6 +141,7 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
     } finally {
       clearInterval(pollTimers.current[key]);
       delete pollTimers.current[key];
+      autoImported.current.delete(key);
       setAssistedSessions((prev) => {
         const next = { ...prev };
         delete next[key];
@@ -227,7 +249,13 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
                     Cancel
                   </button>
                   <span className="assisted-hint">
-                    {session.captchaVisible ? "CAPTCHA shown" : `${session.detectedTenders} rows visible`}
+                    {session.captchaVisible
+                      ? "CAPTCHA shown"
+                      : busy
+                      ? "Importing automatically…"
+                      : `${session.detectedTenders} rows visible${
+                          session.detectedTotal ? ` (portal reports ${session.detectedTotal.toLocaleString("en-IN")} total)` : ""
+                        }`}
                   </span>
                 </>
               )}

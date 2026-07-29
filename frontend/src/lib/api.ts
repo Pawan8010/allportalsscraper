@@ -135,6 +135,7 @@ export interface AssistedSessionStatus {
   portal: string;
   url: string;
   detectedTenders: number;
+  detectedTotal: number | null;
   captchaVisible: boolean;
   expiresAt: string;
 }
@@ -148,10 +149,16 @@ export function getAssistedSessionStatus(sessionId: string) {
 }
 
 export function importAssistedSession(sessionId: string) {
-  return apiFetch<{ runId: string; portal: string; pagesScanned: number; found: number; inserted: number; updated: number; skipped: number }>(
-    `/api/scrape/assisted/${sessionId}/import`,
-    { method: "POST" }
-  );
+  return apiFetch<{
+    runId: string;
+    portal: string;
+    pagesScanned: number;
+    found: number;
+    inserted: number;
+    updated: number;
+    skipped: number;
+    statedTotal: number | null;
+  }>(`/api/scrape/assisted/${sessionId}/import`, { method: "POST" });
 }
 
 export function cancelAssistedSession(sessionId: string) {
