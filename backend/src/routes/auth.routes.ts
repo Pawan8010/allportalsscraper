@@ -23,6 +23,17 @@ function setSessionCookie(res: import("express").Response, rawToken: string, exp
     secure: env.nodeEnv === "production",
     sameSite: "lax",
     expires: expiresAt,
+    // Without an explicit path, a cookie set from a POST to /api/auth/login
+    // defaults (per RFC 6265) to the *directory* of the request that set it
+    // -- "/api/auth" -- so the browser only ever sends it back on other
+    // /api/auth/* requests. Every other route (/api/tenders/search,
+    // /api/portals, /api/alerts/*, ...) would silently never receive it,
+    // failing requireAuth with "Not logged in." even though the session is
+    // genuinely valid (confirmed live, 30 Jul 2026: /api/auth/me succeeded
+    // while every other endpoint 401'd for the same real, active session).
+    // curl's cookie jar doesn't enforce this the same way a real browser
+    // does, which is why extensive curl-based testing never caught it.
+    path: "/",
   });
 }
 
@@ -54,7 +65,10 @@ authRouter.post("/auth/logout", async (req, res, next) => {
   try {
     const rawToken = req.cookies?.[env.sessionCookieName];
     if (rawToken) await revokeSession(rawToken);
-    res.clearCookie(env.sessionCookieName);
+    // Must match the Path the cookie was actually set with (now "/",
+    // see setSessionCookie above) or the browser won't recognise this as
+    // clearing the same cookie and it would linger.
+    res.clearCookie(env.sessionCookieName, { path: "/" });
     res.json({ loggedOut: true });
   } catch (err) {
     next(err);
