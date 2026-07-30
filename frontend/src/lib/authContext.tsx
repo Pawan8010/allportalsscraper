@@ -12,7 +12,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PUBLIC_PATHS = new Set(["/login", "/signup"]);
+// Paths a logged-out visitor can view without being bounced to /login.
+// "/" is the public landing page for a logged-out visitor, or the
+// dashboard for a logged-in one -- pages/index.tsx itself decides which,
+// so it must never be force-redirected away from either way.
+const PUBLIC_PATHS = new Set(["/", "/login", "/signup"]);
+// Paths a logged-in visitor gets bounced away from, back to "/" -- there's
+// no reason to show a login/signup form to someone already signed in.
+const AUTH_FORM_PATHS = new Set(["/login", "/signup"]);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -37,11 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
-    const onPublicPath = PUBLIC_PATHS.has(router.pathname);
-    if (!user && !onPublicPath) {
-      void router.replace("/login");
-    } else if (user && onPublicPath) {
+    if (user && AUTH_FORM_PATHS.has(router.pathname)) {
       void router.replace("/");
+    } else if (!user && !PUBLIC_PATHS.has(router.pathname)) {
+      void router.replace("/login");
     }
   }, [user, loading, router, router.pathname]);
 
