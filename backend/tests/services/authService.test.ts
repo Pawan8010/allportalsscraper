@@ -10,10 +10,20 @@ jest.mock("../../src/config/env", () => ({ env: mockEnv }));
 jest.mock("../../src/services/prisma", () => ({
   prisma: {
     user: {
-      findUnique: jest.fn(async ({ where }: any) => users.find((u) => u.email === where.email) ?? null),
+      findUnique: jest.fn(async ({ where }: any) => {
+        if (where.email !== undefined) return users.find((u) => u.email === where.email) ?? null;
+        if (where.googleId !== undefined) return users.find((u) => u.googleId === where.googleId) ?? null;
+        if (where.id !== undefined) return users.find((u) => u.id === where.id) ?? null;
+        return null;
+      }),
       create: jest.fn(async ({ data }: any) => {
         const user = { id: `user-${++userIdCounter}`, ...data };
         users.push(user);
+        return user;
+      }),
+      update: jest.fn(async ({ where, data }: any) => {
+        const user = users.find((u) => u.id === where.id);
+        if (user) Object.assign(user, data);
         return user;
       }),
       count: jest.fn(async () => users.length),
@@ -50,7 +60,14 @@ jest.mock("../../src/services/prisma", () => ({
   },
 }));
 
-import { registerUser, loginUser, validateSession, revokeSession, AuthError } from "../../src/services/authService";
+import {
+  registerUser,
+  loginUser,
+  validateSession,
+  revokeSession,
+  findOrCreateGoogleUser,
+  AuthError,
+} from "../../src/services/authService";
 
 describe("authService", () => {
   beforeEach(() => {
@@ -135,6 +152,47 @@ describe("authService", () => {
       }
       expect(unknownEmailError?.message).toBe(wrongPasswordError?.message);
       expect(unknownEmailError?.status).toBe(401);
+    });
+  });
+
+  describe("findOrCreateGoogleUser", () => {
+    it("creates a brand new account for a first-time Google sign-in", async () => {
+      const { user } = await findOrCreateGoogleUser("google-sub-1", "new-google@example.com", {});
+      expect(users).toHaveLength(1);
+      expect(user.email).toBe("new-google@example.com");
+      expect(user.googleId).toBe("google-sub-1");
+      expect(user.passwordHash).toBeUndefined();
+    });
+
+    it("returns the same account on a second sign-in with the same Google identity", async () => {
+      const first = await findOrCreateGoogleUser("google-sub-2", "repeat@example.com", {});
+      const second = await findOrCreateGoogleUser("google-sub-2", "repeat@example.com", {});
+      expect(users).toHaveLength(1);
+      expect(second.user.id).toBe(first.user.id);
+    });
+
+    it("links Google to an existing password account with the same email instead of creating a duplicate", async () => {
+      await registerUser("shared@example.com", "correct-password", {});
+      const { user } = await findOrCreateGoogleUser("google-sub-3", "shared@example.com", {});
+
+      expect(users).toHaveLength(1); // still one account, not two
+      expect(user.googleId).toBe("google-sub-3");
+      expect(user.passwordHash).toBeDefined(); // the original password still works too
+
+      // The password login path still works after linking.
+      const loggedIn = await loginUser("shared@example.com", "correct-password", {});
+      expect(loggedIn.user.id).toBe(user.id);
+    });
+
+    it("makes the very first-ever user admin even when they sign up via Google", async () => {
+      const { user } = await findOrCreateGoogleUser("google-sub-4", "first@example.com", {});
+      expect(user.role).toBe("admin");
+    });
+
+    it("returns a usable session token", async () => {
+      const { rawToken } = await findOrCreateGoogleUser("google-sub-5", "session@example.com", {});
+      const session = await validateSession(rawToken);
+      expect(session?.user.email).toBe("session@example.com");
     });
   });
 

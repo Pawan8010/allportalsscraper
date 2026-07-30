@@ -1,12 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { useRouter } from "next/router";
-import { AuthUser, getCurrentUser, login as apiLogin, logout as apiLogout, registerAccount, ApiError } from "./api";
+import {
+  AuthUser,
+  getCurrentUser,
+  login as apiLogin,
+  logout as apiLogout,
+  registerAccount,
+  loginWithGoogle as apiLoginWithGoogle,
+  ApiError,
+} from "./api";
 
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -59,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     register: async (email, password) => {
       setUser(await registerAccount(email, password));
+    },
+    loginWithGoogle: async (credential) => {
+      setUser(await apiLoginWithGoogle(credential));
     },
     logout: async () => {
       await apiLogout().catch(() => undefined);

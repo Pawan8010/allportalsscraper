@@ -10,6 +10,8 @@ import {
   ArrowRight,
   CheckCircle2,
 } from "lucide-react";
+import CursorGlow from "./CursorGlow";
+import DemoShowcase from "./DemoShowcase";
 
 const FEATURES = [
   {
@@ -81,6 +83,7 @@ function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }
 export default function LandingPage() {
   return (
     <div className="landing">
+      <CursorGlow />
       <div className="landing-glow landing-glow-a" />
       <div className="landing-glow landing-glow-b" />
 
@@ -136,6 +139,14 @@ export default function LandingPage() {
               <CheckCircle2 size={14} /> Set up in under a minute
             </li>
           </ul>
+        </section>
+
+        <section className="landing-section landing-demo-section">
+          <Reveal>
+            <h2 className="landing-section-title">See it in action</h2>
+            <p className="landing-section-sub">A live look at how a search actually plays out — no video needed.</p>
+            <DemoShowcase />
+          </Reveal>
         </section>
 
         <section className="landing-section">

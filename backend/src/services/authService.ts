@@ -51,12 +51,43 @@ export async function registerUser(email: string, password: string, ctx: Session
 export async function loginUser(email: string, password: string, ctx: SessionContext) {
   const normalizedEmail = email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  // Same generic error whether the email doesn't exist or the password is
+  // Same generic error whether the email doesn't exist, the account is
+  // Google-only (no passwordHash to compare against), or the password is
   // wrong -- never confirm which one it was.
-  if (!user) throw new AuthError("Invalid email or password.", 401);
+  if (!user || !user.passwordHash) throw new AuthError("Invalid email or password.", 401);
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new AuthError("Invalid email or password.", 401);
+
+  const session = await createSession(user.id, ctx);
+  return { user, ...session };
+}
+
+/**
+ * Finds the existing account for this verified Google identity, or creates
+ * one. Matches by googleId first (returning users), then falls back to
+ * matching by email (a user who already has a password account signing in
+ * with Google for the first time) and links googleId onto that same row --
+ * one account per email, never two, regardless of which method was used
+ * first.
+ */
+export async function findOrCreateGoogleUser(
+  googleId: string,
+  email: string,
+  ctx: SessionContext
+) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  let user = await prisma.user.findUnique({ where: { googleId } });
+  if (!user) {
+    const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (existingByEmail) {
+      user = await prisma.user.update({ where: { id: existingByEmail.id }, data: { googleId } });
+    } else {
+      const role = await roleForNewSignup(normalizedEmail);
+      user = await prisma.user.create({ data: { email: normalizedEmail, googleId, role } });
+    }
+  }
 
   const session = await createSession(user.id, ctx);
   return { user, ...session };

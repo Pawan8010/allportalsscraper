@@ -233,6 +233,10 @@ export function login(email: string, password: string) {
   return apiFetch<AuthUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
 }
 
+export function loginWithGoogle(credential: string) {
+  return apiFetch<AuthUser>("/api/auth/google", { method: "POST", body: JSON.stringify({ credential }) });
+}
+
 export function logout() {
   return apiFetch<{ loggedOut: boolean }>("/api/auth/logout", { method: "POST" });
 }
