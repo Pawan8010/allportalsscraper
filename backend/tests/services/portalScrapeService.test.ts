@@ -25,6 +25,9 @@ jest.mock("../../src/services/prisma", () => ({
       update: jest.fn(async () => ({})),
       deleteMany: jest.fn(async () => ({ count: 0 })),
     },
+    expiredTender: {
+      findUnique: jest.fn(async () => null),
+    },
   },
   disconnectPrisma: jest.fn(),
 }));
@@ -157,6 +160,7 @@ describe("upsertTenders — closed-tender resurrection guard", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.tender.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.expiredTender.findUnique as jest.Mock).mockResolvedValue(null);
   });
 
   it("never inserts a brand-new tender whose own closingDate is already in the past", async () => {
@@ -208,5 +212,18 @@ describe("upsertTenders — closed-tender resurrection guard", () => {
 
     expect(counts).toEqual({ inserted: 1, updated: 0, skipped: 0, failed: 0 });
     expect(prisma.tender.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("never reinserts a tender recorded in the permanent expiry tombstone table", async () => {
+    (prisma.expiredTender.findUnique as jest.Mock).mockResolvedValueOnce({ id: "expired-1" });
+
+    const counts = await upsertTenders(
+      [{ portal: "gem", tenderId: "deleted-closed-1", title: "Previously deleted", tenderURL: "https://example.invalid/4" }],
+      "Government e-Marketplace",
+      "run-1"
+    );
+
+    expect(counts).toEqual({ inserted: 0, updated: 0, skipped: 1, failed: 0 });
+    expect(prisma.tender.upsert).not.toHaveBeenCalled();
   });
 });

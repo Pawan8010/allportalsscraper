@@ -18,6 +18,7 @@ const MODELS: { name: string; findMany: (args: { skip: number; take: number }) =
   { name: "Session", findMany: (a) => prisma.session.findMany({ ...a, orderBy: { id: "asc" } }) },
   { name: "AlertSubscription", findMany: (a) => prisma.alertSubscription.findMany({ ...a, orderBy: { id: "asc" } }) },
   { name: "AlertSentLog", findMany: (a) => prisma.alertSentLog.findMany({ ...a, orderBy: { id: "asc" } }) },
+  { name: "ExpiredTender", findMany: (a) => prisma.expiredTender.findMany({ ...a, orderBy: { id: "asc" } }) },
 ];
 
 async function backupModel(dir: string, model: (typeof MODELS)[number]): Promise<number> {

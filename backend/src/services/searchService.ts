@@ -42,9 +42,19 @@ export function normalizeQuery(raw: string): string {
   return raw
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s/\-.]/gu, " ")
+    .replace(/[^\p{L}\p{N}\s/_\-.]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function isStructuredReference(value: string): boolean {
+  return (
+    value.length >= 6 &&
+    /[a-z]/i.test(value) &&
+    /\d/.test(value) &&
+    /[/_.-]/.test(value) &&
+    /^[\p{L}\p{N}/_.\-\s]+$/u.test(value)
+  );
 }
 
 export async function searchTenders(params: SearchParams) {
@@ -103,6 +113,35 @@ export async function searchTenders(params: SearchParams) {
   }
 
   const normalized = normalizeQuery(rawTerms.join(" "));
+  if (isStructuredReference(normalized)) {
+    const referenceConditions = [
+      ...conditions,
+      Prisma.sql`(
+        lower("tenderId") = ${normalized} OR
+        "tenderId" ILIKE ${"%" + normalized + "%"} OR
+        title ILIKE ${"%" + normalized + "%"} OR
+        description ILIKE ${"%" + normalized + "%"}
+      )`,
+    ];
+    const where = Prisma.sql`WHERE ${Prisma.join(referenceConditions, " AND ")}`;
+    const rows = await prisma.$queryRaw<(SearchResultRow & { total_count: bigint })[]>(Prisma.sql`
+      SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, "publishedDate", "closingDate", "tenderURL",
+        (
+          CASE WHEN lower("tenderId") = ${normalized} THEN 10000 ELSE 0 END +
+          CASE WHEN "tenderId" ILIKE ${"%" + normalized + "%"} THEN 8000 ELSE 0 END +
+          CASE WHEN title ILIKE ${"%" + normalized + "%"} THEN 6000 ELSE 0 END +
+          CASE WHEN description ILIKE ${"%" + normalized + "%"} THEN 4000 ELSE 0 END
+        ) AS rank,
+        COUNT(*) OVER() AS total_count
+      FROM "Tender"
+      ${where}
+      ORDER BY rank DESC, "publishedDate" DESC NULLS LAST
+      OFFSET ${offset} LIMIT ${limit}
+    `);
+    const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    return { rows: rows.map(({ total_count: _total_count, ...row }) => row), total };
+  }
+
   const expanded = expandAliases(normalized);
   const tsQuery = expanded.map((t) => t.split(" ").filter(Boolean).join(" & ")).join(" | ");
 

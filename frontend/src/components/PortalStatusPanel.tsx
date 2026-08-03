@@ -160,6 +160,7 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
       {portals.map((p) => {
         const stated = p.lastRun?.statedTotal;
         const gap = stated != null && stated > p.tenderCount ? stated - p.tenderCount : 0;
+        const storedExceedsSnapshot = stated != null && stated > 0 && p.tenderCount > stated;
         // Only meaningful when the portal reports its own total; otherwise
         // there's nothing to measure coverage against.
         const coverage = stated != null && stated > 0 ? Math.min(100, (p.tenderCount / stated) * 100) : null;
@@ -179,7 +180,7 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
               <span className="metric-label">tenders stored</span>
             </div>
 
-            {coverage !== null ? (
+            {coverage !== null && !storedExceedsSnapshot ? (
               <div className="coverage">
                 <div className="coverage-bar">
                   <div
@@ -190,6 +191,14 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
                 <div className="coverage-legend">
                   <span>{coverage.toFixed(0)}% of {fmt(stated!)} reported</span>
                   {gap > 0 && <span className="coverage-gap">{fmt(gap)} to go</span>}
+                </div>
+              </div>
+            ) : storedExceedsSnapshot ? (
+              <div className="coverage snapshot-covered">
+                <div className="coverage-bar"><div className="coverage-fill complete" style={{ width: "100%" }} /></div>
+                <div className="coverage-legend">
+                  <span>Latest portal snapshot: {fmt(stated!)}</span>
+                  <span className="coverage-history">{fmt(p.tenderCount)} unique stored</span>
                 </div>
               </div>
             ) : (

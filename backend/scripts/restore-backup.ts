@@ -35,6 +35,7 @@ const MODELS_PARENT_FIRST: ModelHandle[] = [
   { name: "Session", deleteMany: () => prisma.session.deleteMany(), createMany: (data) => prisma.session.createMany({ data: data as never[] }) },
   { name: "AlertSubscription", deleteMany: () => prisma.alertSubscription.deleteMany(), createMany: (data) => prisma.alertSubscription.createMany({ data: data as never[] }) },
   { name: "AlertSentLog", deleteMany: () => prisma.alertSentLog.deleteMany(), createMany: (data) => prisma.alertSentLog.createMany({ data: data as never[] }) },
+  { name: "ExpiredTender", deleteMany: () => prisma.expiredTender.deleteMany(), createMany: (data) => prisma.expiredTender.createMany({ data: data as never[] }) },
 ];
 
 async function main() {

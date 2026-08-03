@@ -9,6 +9,9 @@ import {
   DatabaseBackup,
   ArrowRight,
   CheckCircle2,
+  UserPlus,
+  SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import CursorGlow from "./CursorGlow";
 import DemoShowcase from "./DemoShowcase";
@@ -47,9 +50,9 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { n: "01", title: "Sign up", body: "Create your account in seconds — no credit card, no approval wait." },
-  { n: "02", title: "Pick your keywords", body: "Choose from a curated list of defence & surveillance equipment terms, or add your own." },
-  { n: "03", title: "Get matched tenders", body: "Search live, browse by portal, or just wait for the alert email to land." },
+  { n: "01", icon: UserPlus, title: "Sign up", body: "Create your secure workspace in seconds — no approval wait." },
+  { n: "02", icon: SlidersHorizontal, title: "Pick your keywords", body: "Choose defence and surveillance terms or add your own watchlist." },
+  { n: "03", icon: Sparkles, title: "Get matched tenders", body: "Receive ranked results from every connected portal in one searchable feed." },
 ];
 
 /** Fades an element up into place the first time it scrolls into view. */
@@ -176,10 +179,12 @@ export default function LandingPage() {
             <h2 className="landing-section-title">Up and running in three steps</h2>
           </Reveal>
           <div className="landing-steps">
+            <div className="landing-step-rail" aria-hidden="true"><span /></div>
             {STEPS.map((s, i) => (
               <Reveal key={s.n} delay={i * 80}>
                 <div className="landing-step">
-                  <div className="landing-step-num">{s.n}</div>
+                  <div className="landing-step-icon"><s.icon size={21} /></div>
+                  <div className="landing-step-num">STEP {s.n}</div>
                   <h3>{s.title}</h3>
                   <p>{s.body}</p>
                 </div>

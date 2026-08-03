@@ -99,6 +99,12 @@ export async function upsertTenders(
       const existing = await prisma.tender.findUnique({
         where: { portal_tenderId: { portal: t.portal, tenderId: t.tenderId } },
       });
+      const permanentlyExpired = existing
+        ? null
+        : await prisma.expiredTender.findUnique({
+            where: { portal_tenderId: { portal: t.portal, tenderId: t.tenderId } },
+            select: { id: true },
+          });
 
       // A tender whose own scraped closingDate is already in the past is
       // never stored as a brand-new row -- otherwise a portal that keeps
@@ -106,7 +112,7 @@ export async function upsertTenders(
       // on every later scrape, right after the cleanup job deletes it.
       // Rows already in the DB keep updating normally; the cleanup job
       // (tenderCleanupService.ts) removes those on its own schedule.
-      if (!existing && fields.closingDate && fields.closingDate < new Date()) {
+      if (permanentlyExpired || (!existing && fields.closingDate && fields.closingDate < new Date())) {
         skipped++;
         continue;
       }

@@ -4,6 +4,7 @@ import { extractTenderCounts, parseClosingReport } from "./gujaratNprocureParser
 import { withRetry } from "../../utils/retry";
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
+import { incompleteChainAgent } from "./portalTls";
 
 /**
  * Gujarat's real eProcurement domain is tender.nprocure.com, not
@@ -22,6 +23,7 @@ const REPORT_URL = `${BASE_URL}/beforeLoginBidSubmissionClosingReport`;
 
 async function fetchCalendarHtml(): Promise<string> {
   const res = await axios.get(CALENDAR_URL, {
+    httpsAgent: incompleteChainAgent,
     timeout: env.portalTimeoutMs,
     validateStatus: (s) => s < 500,
     headers: { "User-Agent": "Mozilla/5.0 (compatible; RRPGroupsTenderBot/1.0)" },
@@ -36,6 +38,7 @@ async function fetchDayReport(date: string): Promise<string> {
   const params = new URLSearchParams();
   params.set("requestedDate", date);
   const res = await axios.post(REPORT_URL, params.toString(), {
+    httpsAgent: incompleteChainAgent,
     timeout: env.portalTimeoutMs,
     validateStatus: (s) => s < 500,
     headers: {

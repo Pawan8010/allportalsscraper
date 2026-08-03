@@ -33,6 +33,7 @@ jest.mock("../../src/services/prisma", () => ({
     session: { findMany: jest.fn(async () => []) },
     alertSubscription: { findMany: jest.fn(async () => []) },
     alertSentLog: { findMany: jest.fn(async () => []) },
+    expiredTender: { findMany: jest.fn(async () => []) },
   },
 }));
 
@@ -61,6 +62,7 @@ describe("backupService", () => {
       expect(counts.Tender).toBe(2);
       expect(counts.ScrapeRun).toBe(1);
       expect(counts.User).toBe(0);
+      expect(counts.ExpiredTender).toBe(0);
       expect(mkdirCalls.length).toBe(1);
 
       const tenderFile = Object.keys(writtenFiles).find((f) => f.endsWith("Tender.json"));

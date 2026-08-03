@@ -11,11 +11,27 @@ import { env } from "../config/env";
  */
 export async function deleteExpiredTenders(): Promise<number> {
   const cutoff = new Date(Date.now() - env.tenderCleanupGraceDays * 24 * 60 * 60 * 1000);
-  const result = await prisma.tender.deleteMany({
+  const expired = await prisma.tender.findMany({
     where: { closingDate: { lt: cutoff } },
+    select: { portal: true, tenderId: true, closingDate: true },
+  });
+  if (expired.length === 0) return 0;
+
+  const result = await prisma.$transaction(async (transaction) => {
+    await transaction.expiredTender.createMany({
+      data: expired.map((tender) => ({
+        portal: tender.portal,
+        tenderId: tender.tenderId,
+        closedAt: tender.closingDate!,
+      })),
+      skipDuplicates: true,
+    });
+    return transaction.tender.deleteMany({
+      where: { closingDate: { lt: cutoff } },
+    });
   });
   if (result.count > 0) {
-    logger.info({ deleted: result.count, cutoff: cutoff.toISOString() }, "deleted expired tenders");
+    logger.info({ deleted: result.count, cutoff: cutoff.toISOString() }, "archived and deleted expired tenders");
   }
   return result.count;
 }

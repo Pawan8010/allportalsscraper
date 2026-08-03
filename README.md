@@ -50,8 +50,7 @@ cp backend/.env.example backend/.env
 cd backend
 npm install
 npx prisma generate
-npx prisma migrate dev --name init
-psql "$DATABASE_URL" -f prisma/manual_sql/001_search_support.sql
+npx prisma migrate deploy
 npm run build
 npm run lint
 npm test

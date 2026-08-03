@@ -1,9 +1,10 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
-import { ShieldCheck, LogIn, Loader2 } from "lucide-react";
+import { LogIn, Loader2, LockKeyhole, Mail } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { ApiError } from "@/lib/api";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import AuthShell from "@/components/AuthShell";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -26,41 +27,30 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="card auth-card">
-        <div className="auth-brand">
-          <ShieldCheck size={20} />
-          <div>
-            <strong>RRP Groups</strong>
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Tender Intelligence</div>
-          </div>
-        </div>
-
+    <AuthShell eyebrow="Secure access" title="Welcome back" subtitle="Sign in to search live tenders, manage alerts, and monitor every portal.">
         <form onSubmit={handleSubmit}>
           <div className="auth-field">
             <label htmlFor="email">Email</label>
-            <input
+            <div className="auth-input-wrap"><Mail size={15} /><input
               id="email"
               type="email"
               className="input"
-              style={{ width: "100%" }}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               autoFocus
-            />
+            /></div>
           </div>
           <div className="auth-field">
             <label htmlFor="password">Password</label>
-            <input
+            <div className="auth-input-wrap"><LockKeyhole size={15} /><input
               id="password"
               type="password"
               className="input"
-              style={{ width: "100%" }}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-            />
+            /></div>
           </div>
 
           {error && (
@@ -80,7 +70,6 @@ export default function LoginPage() {
         <div className="auth-switch">
           Don&apos;t have an account? <Link href="/signup">Sign up</Link>
         </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

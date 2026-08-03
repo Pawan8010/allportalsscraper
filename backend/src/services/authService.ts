@@ -137,3 +137,49 @@ export async function listSessions() {
     orderBy: { lastActiveAt: "desc" },
   });
 }
+
+export async function listUsers() {
+  return prisma.user.findMany({
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      googleId: true,
+      passwordHash: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: { select: { sessions: true, alertSentLogs: true } },
+      alertSubscription: { select: { active: true, keywords: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export async function createUserByAdmin(email: string, password: string, role: "admin" | "user") {
+  const normalizedEmail = email.trim().toLowerCase();
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existing) throw new AuthError("An account with this email already exists.", 409);
+  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+  return prisma.user.create({
+    data: { email: normalizedEmail, passwordHash, role },
+    select: { id: true, email: true, role: true, createdAt: true },
+  });
+}
+
+export async function updateUserRole(userId: string, role: "admin" | "user", actingUserId: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+  if (!user) throw new AuthError("User not found.", 404);
+  if (user.id === actingUserId && role !== "admin") {
+    throw new AuthError("You cannot remove your own admin access.", 400);
+  }
+  if (user.role === "admin" && role === "user") {
+    const adminCount = await prisma.user.count({ where: { role: "admin" } });
+    if (adminCount <= 1) throw new AuthError("The final admin account cannot be demoted.", 400);
+  }
+  return prisma.user.update({ where: { id: userId }, data: { role }, select: { id: true, email: true, role: true } });
+}
+
+export async function revokeSessionById(sessionId: string): Promise<boolean> {
+  const result = await prisma.session.updateMany({ where: { id: sessionId, active: true }, data: { active: false } });
+  return result.count > 0;
+}

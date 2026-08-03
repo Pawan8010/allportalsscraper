@@ -138,6 +138,17 @@ model AlertSentLog {
   @@unique([userId, portal, tenderId])
 }
 
+model ExpiredTender {
+  id       String @id @default(cuid())
+  portal   String
+  tenderId String
+  closedAt DateTime
+  deletedAt DateTime @default(now())
+
+  @@unique([portal, tenderId])
+  @@index([closedAt])
+}
+
 model ScrapeRun {
   id     String @id @default(cuid())
   portal String

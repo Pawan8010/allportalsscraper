@@ -1,4 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+export const AUTH_SESSION_EXPIRED_EVENT = "rrp:auth-session-expired";
 
 // Shared page size for search results -- used both when building the
 // request and when computing "Showing A-B of C" display math, so the two
@@ -45,6 +46,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
       if (body?.message) message = body.message;
     } catch {
       /* ignore body parse failure */
+    }
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
     }
     throw new ApiError(message, res.status);
   }
@@ -258,6 +262,41 @@ export interface AdminSession {
 
 export function getAdminSessions() {
   return apiFetch<{ sessions: AdminSession[]; count: number }>("/api/admin/sessions");
+}
+
+export function revokeAdminSession(sessionId: string) {
+  return apiFetch<{ revoked: boolean }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/revoke`, { method: "POST" });
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: "admin" | "user";
+  loginMethods: string[];
+  sessionCount: number;
+  alertCount: number;
+  alertsActive: boolean;
+  alertKeywords: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getAdminUsers() {
+  return apiFetch<{ users: AdminUser[]; count: number }>("/api/admin/users");
+}
+
+export function createAdminUser(email: string, password: string, role: "admin" | "user") {
+  return apiFetch<{ id: string; email: string; role: "admin" | "user"; createdAt: string }>("/api/admin/users", {
+    method: "POST",
+    body: JSON.stringify({ email, password, role }),
+  });
+}
+
+export function updateAdminUserRole(userId: string, role: "admin" | "user") {
+  return apiFetch<{ id: string; email: string; role: "admin" | "user" }>(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
 }
 
 export interface AlertSubscription {

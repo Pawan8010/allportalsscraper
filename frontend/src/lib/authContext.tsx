@@ -8,6 +8,7 @@ import {
   registerAccount,
   loginWithGoogle as apiLoginWithGoogle,
   ApiError,
+  AUTH_SESSION_EXPIRED_EVENT,
 } from "./api";
 
 interface AuthContextValue {
@@ -49,6 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // deps), and login()/register()/logout() below update `user` directly
     // rather than relying on this effect to re-fire.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      setUser(null);
+      setLoading(false);
+    };
+
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleExpiredSession);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleExpiredSession);
   }, []);
 
   useEffect(() => {

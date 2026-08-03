@@ -26,7 +26,7 @@ jest.mock("../../src/services/prisma", () => ({
         if (user) Object.assign(user, data);
         return user;
       }),
-      count: jest.fn(async () => users.length),
+      count: jest.fn(async ({ where }: any = {}) => where?.role ? users.filter((u) => u.role === where.role).length : users.length),
     },
     session: {
       create: jest.fn(async ({ data }: any) => {
@@ -48,7 +48,8 @@ jest.mock("../../src/services/prisma", () => ({
       updateMany: jest.fn(async ({ where, data }: any) => {
         let count = 0;
         for (const s of sessions) {
-          if (s.tokenHash === where.tokenHash) {
+          if ((where.tokenHash !== undefined && s.tokenHash === where.tokenHash) ||
+              (where.id !== undefined && s.id === where.id && (where.active === undefined || s.active === where.active))) {
             Object.assign(s, data);
             count++;
           }
@@ -66,6 +67,9 @@ import {
   validateSession,
   revokeSession,
   findOrCreateGoogleUser,
+  createUserByAdmin,
+  updateUserRole,
+  revokeSessionById,
   AuthError,
 } from "../../src/services/authService";
 
@@ -217,6 +221,44 @@ describe("authService", () => {
       const { rawToken } = await registerUser("expired@example.com", "password123", {});
       sessions[0].expiresAt = new Date(Date.now() - 1000);
       expect(await validateSession(rawToken)).toBeNull();
+    });
+  });
+
+  describe("admin account controls", () => {
+    it("creates a password account without storing plaintext", async () => {
+      const user = await createUserByAdmin("Managed@Example.com", "managed-password", "user");
+      expect(user.email).toBe("managed@example.com");
+      expect(users[0].passwordHash).toMatch(/^\$2[aby]\$/);
+      expect(users[0].passwordHash).not.toBe("managed-password");
+    });
+
+    it("rejects duplicate admin-created accounts", async () => {
+      await createUserByAdmin("managed@example.com", "managed-password", "user");
+      await expect(createUserByAdmin("MANAGED@example.com", "another-password", "user")).rejects.toThrow("already exists");
+    });
+
+    it("promotes a user to admin", async () => {
+      const first = await registerUser("admin@example.com", "password123", {});
+      const second = await registerUser("user@example.com", "password123", {});
+      const updated = await updateUserRole(second.user.id, "admin", first.user.id);
+      expect(updated.role).toBe("admin");
+    });
+
+    it("prevents an admin from demoting their own account", async () => {
+      const { user } = await registerUser("admin@example.com", "password123", {});
+      await expect(updateUserRole(user.id, "user", user.id)).rejects.toThrow("own admin access");
+    });
+
+    it("prevents demoting the final admin", async () => {
+      const first = await registerUser("first@example.com", "password123", {});
+      const second = await registerUser("second@example.com", "password123", {});
+      await expect(updateUserRole(first.user.id, "user", second.user.id)).rejects.toThrow("final admin");
+    });
+
+    it("revokes an active session by id", async () => {
+      await registerUser("session@example.com", "password123", {});
+      expect(await revokeSessionById(sessions[0].id)).toBe(true);
+      expect(sessions[0].active).toBe(false);
     });
   });
 });

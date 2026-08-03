@@ -1,14 +1,26 @@
-import { useEffect, useState } from "react";
-import { CheckCircle2, MinusCircle, DatabaseBackup, Loader2 } from "lucide-react";
-import { getAdminSessions, AdminSession, getBackups, runBackupNow, BackupSummary, ApiError } from "@/lib/api";
+import { FormEvent, useEffect, useState } from "react";
+import { CheckCircle2, DatabaseBackup, Loader2, MinusCircle, Power, ShieldCheck, UserCog } from "lucide-react";
+import {
+  AdminSession,
+  AdminUser,
+  ApiError,
+  BackupSummary,
+  createAdminUser,
+  getAdminSessions,
+  getAdminUsers,
+  getBackups,
+  revokeAdminSession,
+  runBackupNow,
+  updateAdminUserRole,
+} from "@/lib/api";
+import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toast";
 
 function relativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
 }
@@ -20,72 +32,100 @@ function fmtBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function BackupsCard() {
+function UsersCard() {
   const toast = useToast();
-  const [backups, setBackups] = useState<BackupSummary[]>([]);
+  const { user: currentUser } = useAuth();
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
+  const [changing, setChanging] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"admin" | "user">("user");
+  const [creating, setCreating] = useState(false);
 
   async function load() {
     try {
-      const { backups } = await getBackups();
-      setBackups(backups);
-    } catch {
-      /* the sessions table above already surfaces a load error; keep this quiet */
+      const result = await getAdminUsers();
+      setUsers(result.users);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to load users.");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleRunNow() {
-    setRunning(true);
+  async function changeRole(user: AdminUser) {
+    const role = user.role === "admin" ? "user" : "admin";
+    setChanging(user.id);
     try {
-      const { counts } = await runBackupNow();
-      toast.success(`Backup complete (${Object.values(counts).reduce((a, b) => a + b, 0).toLocaleString("en-IN")} rows).`);
+      await updateAdminUserRole(user.id, role);
+      toast.success(`${user.email} is now ${role}.`);
       await load();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Backup failed.");
+      toast.error(err instanceof ApiError ? err.message : "Role update failed.");
     } finally {
-      setRunning(false);
+      setChanging(null);
+    }
+  }
+
+  async function createUser(event: FormEvent) {
+    event.preventDefault();
+    setCreating(true);
+    try {
+      await createAdminUser(newEmail, newPassword, newRole);
+      toast.success(`${newEmail.trim().toLowerCase()} created.`);
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("user");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "User creation failed.");
+    } finally {
+      setCreating(false);
     }
   }
 
   return (
     <div className="card">
-      <div className="section-title">
-        <DatabaseBackup size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
-        Local backups
-      </div>
-      <button className="btn small secondary" onClick={handleRunNow} disabled={running} style={{ marginBottom: 12 }}>
-        {running ? <Loader2 size={12} className="spin" /> : <DatabaseBackup size={12} />}
-        Run backup now
-      </button>
-      {loading ? (
-        <div className="loading-state">Loading backups…</div>
-      ) : backups.length === 0 ? (
-        <div className="empty-state">No backups yet.</div>
+      <div className="section-title"><UserCog size={15} /> Users ({users.length})</div>
+      <form className="admin-create-user" onSubmit={(event) => void createUser(event)}>
+        <input className="input" type="email" placeholder="User email" aria-label="New user email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} required />
+        <input className="input" type="password" placeholder="Temporary password" aria-label="New user password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} required />
+        <select className="input" aria-label="New user role" value={newRole} onChange={(event) => setNewRole(event.target.value as "admin" | "user")}>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button className="btn" type="submit" disabled={creating}>
+          {creating ? <Loader2 size={12} className="spin" /> : <UserCog size={12} />} Create account
+        </button>
+      </form>
+      {loading ? <div className="loading-state">Loading users…</div> : error ? (
+        <div className="error-state">Unable to load users — {error}</div>
       ) : (
         <div className="table-wrap">
           <table className="run-table">
-            <thead>
-              <tr>
-                <th>Created</th>
-                <th>Size</th>
+            <thead><tr><th>Email</th><th>Role</th><th>Login</th><th>Sessions</th><th>Alerts</th><th>Joined</th><th>Action</th></tr></thead>
+            <tbody>{users.map((user) => (
+              <tr key={user.id}>
+                <td>{user.email}</td>
+                <td><span className={`badge ${user.role === "admin" ? "warning" : "muted"}`}>{user.role}</span></td>
+                <td>{user.loginMethods.join(" + ") || "—"}</td>
+                <td>{user.sessionCount}</td>
+                <td>{user.alertsActive ? `${user.alertKeywords.length} keywords` : "off"}</td>
+                <td title={new Date(user.createdAt).toLocaleString()}>{relativeTime(user.createdAt)}</td>
+                <td><button className="btn small secondary" disabled={changing === user.id || currentUser?.id === user.id} onClick={() => void changeRole(user)}>
+                  {changing === user.id ? <Loader2 size={12} className="spin" /> : <ShieldCheck size={12} />}
+                  {user.role === "admin" ? "Make user" : "Make admin"}
+                </button></td>
               </tr>
-            </thead>
-            <tbody>
-              {backups.map((b) => (
-                <tr key={b.name}>
-                  <td title={new Date(b.createdAt).toLocaleString()}>{relativeTime(b.createdAt)}</td>
-                  <td>{fmtBytes(b.sizeBytes)}</td>
-                </tr>
-              ))}
-            </tbody>
+            ))}</tbody>
           </table>
         </div>
       )}
@@ -93,7 +133,8 @@ function BackupsCard() {
   );
 }
 
-export default function SessionsPanel() {
+function SessionsCard() {
+  const toast = useToast();
   const [sessions, setSessions] = useState<AdminSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,82 +143,92 @@ export default function SessionsPanel() {
     let cancelled = false;
     async function load() {
       try {
-        const { sessions } = await getAdminSessions();
-        if (!cancelled) {
-          setSessions(sessions);
-          setError(null);
-        }
+        const result = await getAdminSessions();
+        if (!cancelled) { setSessions(result.sessions); setError(null); }
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.message : "Failed to load sessions.");
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-    load();
+    void load();
     const timer = setInterval(load, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
+    return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
-  return (
-    <>
-      {loading ? (
-        <div className="loading-state">Loading sessions…</div>
-      ) : error ? (
-        <div className="error-state">Unable to load sessions — {error}</div>
-      ) : sessions.length === 0 ? (
-        <div className="empty-state">No sessions yet.</div>
-      ) : (
-        <div className="card">
-          <div className="section-title">
-            Active sessions <span style={{ color: "var(--text-muted)" }}>({sessions.length})</span>
-          </div>
-          <div className="table-wrap">
-            <table className="run-table">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>IP address</th>
-                  <th>Status</th>
-                  <th>Last active</th>
-                  <th>Logged in</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.email}</td>
-                    <td>
-                      <span className={`badge ${s.role === "admin" ? "warning" : "muted"}`}>{s.role}</span>
-                    </td>
-                    <td>{s.ipAddress ?? "—"}</td>
-                    <td>
-                      {s.active ? (
-                        <span className="badge success">
-                          <CheckCircle2 size={12} />
-                          active
-                        </span>
-                      ) : (
-                        <span className="badge muted">
-                          <MinusCircle size={12} />
-                          ended
-                        </span>
-                      )}
-                    </td>
-                    <td title={new Date(s.lastActiveAt).toLocaleString()}>{relativeTime(s.lastActiveAt)}</td>
-                    <td title={new Date(s.createdAt).toLocaleString()}>{relativeTime(s.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+  async function revoke(session: AdminSession) {
+    try {
+      await revokeAdminSession(session.id);
+      setSessions((current) => current.map((item) => item.id === session.id ? { ...item, active: false } : item));
+      toast.success(`Session for ${session.email} revoked.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not revoke session.");
+    }
+  }
 
-      <BackupsCard />
-    </>
+  if (loading) return <div className="loading-state">Loading sessions…</div>;
+  if (error) return <div className="error-state">Unable to load sessions — {error}</div>;
+  return (
+    <div className="card">
+      <div className="section-title">Active sessions ({sessions.length})</div>
+      {sessions.length === 0 ? <div className="empty-state">No sessions yet.</div> : (
+        <div className="table-wrap"><table className="run-table">
+          <thead><tr><th>Email</th><th>Role</th><th>IP address</th><th>Status</th><th>Last active</th><th>Logged in</th><th>Action</th></tr></thead>
+          <tbody>{sessions.map((session) => (
+            <tr key={session.id}>
+              <td>{session.email}</td>
+              <td><span className={`badge ${session.role === "admin" ? "warning" : "muted"}`}>{session.role}</span></td>
+              <td>{session.ipAddress ?? "—"}</td>
+              <td>{session.active ? <span className="badge success"><CheckCircle2 size={12} />active</span> : <span className="badge muted"><MinusCircle size={12} />ended</span>}</td>
+              <td title={new Date(session.lastActiveAt).toLocaleString()}>{relativeTime(session.lastActiveAt)}</td>
+              <td title={new Date(session.createdAt).toLocaleString()}>{relativeTime(session.createdAt)}</td>
+              <td><button className="btn small secondary" disabled={!session.active} onClick={() => void revoke(session)}><Power size={12} />Revoke</button></td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+    </div>
   );
+}
+
+function BackupsCard() {
+  const toast = useToast();
+  const [backups, setBackups] = useState<BackupSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+
+  async function load() {
+    try { setBackups((await getBackups()).backups); } finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); }, []);
+
+  async function run() {
+    setRunning(true);
+    try {
+      const { counts } = await runBackupNow();
+      toast.success(`Backup complete (${Object.values(counts).reduce((sum, count) => sum + count, 0).toLocaleString("en-IN")} rows).`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Backup failed.");
+    } finally { setRunning(false); }
+  }
+
+  return (
+    <div className="card">
+      <div className="section-title"><DatabaseBackup size={15} /> Local backups</div>
+      <button className="btn small secondary" onClick={() => void run()} disabled={running} style={{ marginBottom: 12 }}>
+        {running ? <Loader2 size={12} className="spin" /> : <DatabaseBackup size={12} />} Run backup now
+      </button>
+      {loading ? <div className="loading-state">Loading backups…</div> : backups.length === 0 ? <div className="empty-state">No backups yet.</div> : (
+        <div className="table-wrap"><table className="run-table">
+          <thead><tr><th>Created</th><th>Size</th></tr></thead>
+          <tbody>{backups.map((backup) => <tr key={backup.name}><td title={new Date(backup.createdAt).toLocaleString()}>{relativeTime(backup.createdAt)}</td><td>{fmtBytes(backup.sizeBytes)}</td></tr>)}</tbody>
+        </table></div>
+      )}
+    </div>
+  );
+}
+
+export default function SessionsPanel() {
+  return <><UsersCard /><SessionsCard /><BackupsCard /></>;
 }

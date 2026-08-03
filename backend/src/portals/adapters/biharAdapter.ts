@@ -3,6 +3,7 @@ import { PortalAdapter, PortalAvailability, PortalTender, ScrapeOptions } from "
 import { mapBiharTenderList } from "./biharParser";
 import { logger } from "../../utils/logger";
 import { env } from "../../config/env";
+import { incompleteChainAgent } from "./portalTls";
 
 /**
  * Bihar migrated off the shared NIC GePNIC platform onto its own "EPSV2Web"
@@ -24,6 +25,7 @@ function cookiesFromSetCookie(setCookie: string[] | undefined): string {
 
 async function fetchListingSession(): Promise<{ authorization: string; cookie: string }> {
   const res = await axios.get(LISTING_URL, {
+    httpsAgent: incompleteChainAgent,
     timeout: env.portalTimeoutMs,
     validateStatus: (s) => s < 500,
     headers: { "User-Agent": "Mozilla/5.0 (compatible; RRPGroupsTenderBot/1.0)" },
@@ -63,6 +65,7 @@ export const biharAdapter: PortalAdapter = {
   async scrapeAll(options: ScrapeOptions): Promise<PortalTender[]> {
     const { authorization, cookie } = await fetchListingSession();
     const res = await axios.post(TENDER_LIST_URL, "{}", {
+      httpsAgent: incompleteChainAgent,
       timeout: env.portalTimeoutMs,
       validateStatus: (s) => s < 500,
       headers: {

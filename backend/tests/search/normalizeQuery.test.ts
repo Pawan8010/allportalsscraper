@@ -10,6 +10,10 @@ describe("normalizeQuery", () => {
     expect(normalizeQuery("IIPE/SnP/2025-26/09")).toBe("iipe/snp/2025-26/09");
   });
 
+  it("keeps underscores used by non-GeM tender references", () => {
+    expect(normalizeQuery("2026_HFWD_53002_1")).toBe("2026_hfwd_53002_1");
+  });
+
   it("strips other punctuation", () => {
     expect(normalizeQuery("Night Vision Goggles (NVG)!!")).toBe("night vision goggles nvg");
   });

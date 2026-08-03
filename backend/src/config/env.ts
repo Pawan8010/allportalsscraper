@@ -1,5 +1,10 @@
 import dotenv from "dotenv";
-dotenv.config();
+
+const inheritedDatabaseUrl = process.env.DATABASE_URL?.trim();
+const inheritedDatabaseUrlIsValid =
+  inheritedDatabaseUrl === undefined || /^postgres(?:ql)?:\/\//i.test(inheritedDatabaseUrl);
+
+dotenv.config({ override: !inheritedDatabaseUrlIsValid });
 
 function bool(name: string, fallback: boolean): boolean {
   const v = process.env[name];

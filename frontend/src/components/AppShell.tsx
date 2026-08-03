@@ -43,7 +43,7 @@ const TITLES: Record<View, string> = {
   portals: "Portal Status",
   activity: "Scrape Activity",
   alerts: "Email Alerts",
-  sessions: "Active Sessions",
+  sessions: "Admin Console",
 };
 
 function fmt(n: number) {
@@ -71,7 +71,7 @@ export default function AppShell({
     { id: "alerts", label: "Alerts", icon: BellRing },
   ];
   if (user?.role === "admin") {
-    nav.push({ id: "sessions", label: "Sessions", icon: Users });
+    nav.push({ id: "sessions", label: "Admin", icon: Users });
   }
 
   function pick(v: View) {
