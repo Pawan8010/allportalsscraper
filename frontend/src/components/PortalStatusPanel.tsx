@@ -61,7 +61,7 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
         // waiting for a separate button click. Guarded by autoImported so
         // a session isn't imported twice if rows are still visible on the
         // next poll tick while the first import is already in flight.
-        if (!status.captchaVisible && status.detectedTenders > 0 && !autoImported.current.has(portalKey)) {
+        if (status.readyForImport && !autoImported.current.has(portalKey)) {
           autoImported.current.add(portalKey);
           clearInterval(pollTimers.current[portalKey]);
           delete pollTimers.current[portalKey];
@@ -97,7 +97,11 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
       setAssistedSessions((prev) => ({ ...prev, [key]: status }));
       autoImported.current.delete(key);
       pollSession(key, session.sessionId);
-      toast.info("Browser window opened — solve the CAPTCHA there. Results import automatically once it's gone.");
+      toast.info(
+        key === "ireps"
+          ? "IREPS opened — complete the official mobile OTP flow and show tender results. Import will then start automatically."
+          : "Browser window opened — solve the CAPTCHA there. Results import automatically once it's gone."
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open assisted session");
     } finally {
@@ -258,7 +262,9 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
                     Cancel
                   </button>
                   <span className="assisted-hint">
-                    {session.captchaVisible
+                    {session.verificationRequired
+                      ? "Complete mobile OTP in the IREPS window"
+                      : session.captchaVisible
                       ? "CAPTCHA shown"
                       : busy
                       ? "Importing automatically…"
@@ -272,7 +278,7 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
               {p.supportsAssistedScrape && !session && (
                 <button className="btn small secondary" disabled={busy} onClick={() => handleStartAssisted(p.key)}>
                   {busy ? <Loader2 size={12} className="spin" /> : <ExternalLink size={12} />}
-                  {p.enabled ? "Deep Scrape" : "Open CAPTCHA"}
+                  {p.key === "ireps" ? "Open IREPS & Verify" : p.enabled ? "Deep Scrape" : "Open CAPTCHA"}
                 </button>
               )}
 

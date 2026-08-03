@@ -145,6 +145,8 @@ export interface AssistedSessionStatus {
   detectedTenders: number;
   detectedTotal: number | null;
   captchaVisible: boolean;
+  verificationRequired: boolean;
+  readyForImport: boolean;
   expiresAt: string;
 }
 

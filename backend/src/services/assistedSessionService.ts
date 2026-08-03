@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { getPortalEntry } from "../portals/portalRegistry";
-import { PortalRegistryEntry, PortalTender } from "../portals/portal.types";
+import { PortalRegistryEntry } from "../portals/portal.types";
 import { prisma } from "./prisma";
 import { upsertTenders } from "./portalScrapeService";
 import { logger } from "../utils/logger";
-import { parseAssistedDate } from "../utils/dateParser";
+import { parseAssistedRows } from "./assistedRowParser";
 
 /**
  * For portals that are CAPTCHA/session-gated with no scriptable public API
@@ -109,7 +109,9 @@ export async function startAssistedSession(portalKey: string) {
     portal: portal.key,
     url: startUrl,
     instructions:
-      "In the browser window that just opened, solve any CAPTCHA and navigate to the public tender results list. Then call the import endpoint.",
+      portal.key === "ireps"
+        ? "In the IREPS browser window, complete the official mobile OTP flow and open the tender results table. Import starts automatically when real tender rows are detected."
+        : "In the browser window that just opened, solve any CAPTCHA and navigate to the public tender results list. Then call the import endpoint.",
     expiresAt: expiresAt.toISOString(),
   };
 }
@@ -147,8 +149,12 @@ function detectStatedTotal(bodyText: string): number | null {
 // one anywhere else), so DOM element types aren't available here. `any` on
 // the callback boundary is deliberate, not a shortcut: the real DOM types
 // only exist in the page context this code is serialised into.
-async function visibleRows(page: Page) {
-  return page.locator('table tr, mat-row, .mat-row, [role="row"]').evaluateAll((elements: any[]) =>
+function rowSelector(portalKey: string): string {
+  return portalKey === "ireps" ? "#showingDataTable thead tr, #showingDataTable tbody tr" : 'table tr, mat-row, .mat-row, [role="row"]';
+}
+
+async function visibleRows(page: Page, portalKey: string) {
+  return page.locator(rowSelector(portalKey)).evaluateAll((elements: any[]) =>
     elements.map((el) => ({
       cells: Array.from(
         el.querySelectorAll(
@@ -160,61 +166,12 @@ async function visibleRows(page: Page) {
   );
 }
 
-function parseRows(
-  rows: Array<{ cells: string[]; links: string[] }>,
-  portal: PortalRegistryEntry
-): PortalTender[] {
-  const tenders: PortalTender[] = [];
-  for (const row of rows) {
-    const cells = row.cells.map(clean).filter(Boolean);
-    const text = cells.join(" | ");
-    if (cells.length < 2) continue;
-    if (/tender id|tender no|closing date|published date/i.test(text) && cells.length < 4) continue;
-
-    const tenderId =
-      text.match(/\b(?:GEM\/\d{4}\/[A-Z]\/\d+|[A-Z0-9][A-Z0-9_./-]{4,}\d)\b/i)?.[0] ??
-      text.match(/\b\d{5,}\b/)?.[0];
-    if (!tenderId) continue;
-
-    const dateMatches = text.match(/\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM)?)?/gi) ?? [];
-    // Parse each raw match into a real Date before storing it -- handing
-    // an unparsed string like "29/07/2026 10:30" straight through used to
-    // reach `new Date(...)` downstream, which reads slash-dates as
-    // MM/DD/YYYY and silently produces an Invalid Date for any day above
-    // 12. Prisma then rejects the whole row, not just the date field
-    // (confirmed live: dropped 29 of 35 real IREPS rows, 28 Jul 2026).
-    // Unparseable matches are dropped rather than passed through broken.
-    const parsedDates = dateMatches
-      .map((d) => parseAssistedDate(d))
-      .filter((d): d is Date => d !== null);
-    const title =
-      cells
-        .filter((cell) => cell !== tenderId && cell.length > 8 && !/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}/.test(cell))
-        .sort((a, b) => b.length - a.length)[0] ?? text;
-    const absoluteLink = row.links.find((link) => /^https?:\/\//i.test(link)) ?? portal.baseUrl;
-
-    tenders.push({
-      portal: portal.key,
-      tenderId,
-      title,
-      organisation: cells.find((c) => /department|ministry|division|corporation|railway|board/i.test(c)),
-      tenderURL: absoluteLink,
-      documentURL: absoluteLink,
-      description: text,
-      publishedDate: parsedDates[0]?.toISOString(),
-      closingDate: parsedDates.at(-1)?.toISOString(),
-      status: "active",
-    });
-  }
-  return tenders;
-}
-
 export async function getAssistedSessionStatus(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session) throw new AssistedSessionError("Assisted session was not found or has expired.", 404);
 
-  const rows = await visibleRows(session.page).catch(() => []);
-  const tenders = parseRows(rows, session.portal);
+  const rows = await visibleRows(session.page, session.portal.key).catch(() => []);
+  const tenders = parseAssistedRows(rows, session.portal);
   const visibleCaptchaInputs = await session.page
     .locator('input[name*="captcha" i]:visible, input[id*="captcha" i]:visible, input[placeholder*="captcha" i]:visible')
     .count()
@@ -222,6 +179,10 @@ export async function getAssistedSessionStatus(sessionId: string) {
   const bodyText = clean(await session.page.locator("body").innerText().catch(() => "")).slice(0, 10_000);
   const captchaVisible =
     visibleCaptchaInputs > 0 || (tenders.length === 0 && /captcha|verification code|security check/i.test(bodyText));
+  const verificationRequired =
+    session.portal.key === "ireps" &&
+    tenders.length === 0 &&
+    /(?:mobile\s*(?:number|no)|enter\s*otp|get\s*otp|guest\s*login|login\s*ireps|one[- ]time password)/i.test(bodyText);
 
   return {
     sessionId,
@@ -230,18 +191,18 @@ export async function getAssistedSessionStatus(sessionId: string) {
     detectedTenders: tenders.length,
     detectedTotal: detectStatedTotal(bodyText),
     captchaVisible,
+    verificationRequired,
+    readyForImport: tenders.length > 0 && !captchaVisible && !verificationRequired,
     expiresAt: session.expiresAt.toISOString(),
   };
 }
 
-const ROW_SELECTOR = 'table tr, mat-row, .mat-row, [role="row"]';
-
 /** Table-row text only -- stable across pages that share identical header/nav
  *  chrome (see the comment on the dedup signature in importAssistedSession). */
-async function rowsSignature(page: Page): Promise<string> {
+async function rowsSignature(page: Page, portalKey: string): Promise<string> {
   return clean(
     await page
-      .locator(ROW_SELECTOR)
+      .locator(rowSelector(portalKey))
       .allInnerTexts()
       .then((rows) => rows.join("|"))
       .catch(() => "")
@@ -272,8 +233,9 @@ async function paginationBroadScan(page: Page): Promise<string[]> {
     .catch(() => []);
 }
 
-async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
-  const previousRows = await rowsSignature(page);
+async function clickNext(page: Page, pageNumber: number, portalKey: string): Promise<boolean> {
+  const selector = rowSelector(portalKey);
+  const previousRows = await rowsSignature(page, portalKey);
   const nextPageNumber = String(pageNumber + 1);
   const candidates: { label: string; locator: ReturnType<Page["locator"]> }[] = [
     { label: "dataTables .next", locator: page.locator(".dataTables_paginate .next:not(.disabled) a") },
@@ -337,7 +299,7 @@ async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
             .trim();
           return Boolean(current) && current !== previous;
         },
-        { selector: ROW_SELECTOR, previous: previousRows },
+        { selector, previous: previousRows },
         { timeout: 15_000 }
       )
       .catch(() => undefined);
@@ -366,9 +328,10 @@ async function clickNext(page: Page, pageNumber: number): Promise<boolean> {
 // row into view is the generic, framework-agnostic way to trigger that
 // kind of lazy rendering without needing to know the grid's exact
 // internals.
-async function tryScrollForMore(page: Page): Promise<boolean> {
-  const previousRows = await rowsSignature(page);
-  const rowLocator = page.locator(ROW_SELECTOR);
+async function tryScrollForMore(page: Page, portalKey: string): Promise<boolean> {
+  const selector = rowSelector(portalKey);
+  const previousRows = await rowsSignature(page, portalKey);
+  const rowLocator = page.locator(selector);
   if ((await rowLocator.count().catch(() => 0)) === 0) return false;
   await rowLocator.last().scrollIntoViewIfNeeded().catch(() => undefined);
   await page.mouse.wheel(0, 3000).catch(() => undefined);
@@ -382,7 +345,7 @@ async function tryScrollForMore(page: Page): Promise<boolean> {
           .trim();
         return Boolean(current) && current !== previous;
       },
-      { selector: ROW_SELECTOR, previous: previousRows },
+      { selector, previous: previousRows },
       { timeout: 4_000 }
     )
     .then(() => true)
@@ -438,11 +401,11 @@ export async function importAssistedSession(sessionId: string) {
       // live: a session with 21,747 real results only imported 2 pages / 34
       // tenders before this signature falsely matched. Row text changes
       // with the actual data, so it doesn't have this false-positive risk.
-      const signature = await rowsSignature(session.page);
+      const signature = await rowsSignature(session.page, session.portal.key);
       if (seenPages.has(signature)) break;
       seenPages.add(signature);
 
-      const tenders = parseRows(await visibleRows(session.page), session.portal);
+      const tenders = parseAssistedRows(await visibleRows(session.page, session.portal.key), session.portal);
       const counts = await upsertTenders(tenders, session.portal.name, run.id);
       pagesScanned += 1;
       found += tenders.length;
@@ -455,7 +418,7 @@ export async function importAssistedSession(sessionId: string) {
       // control (nothing found anywhere on the page), fall back to
       // scrolling for a virtual-scroll grid before concluding there's
       // really nothing more to load.
-      if (!(await clickNext(session.page, pagesScanned)) && !(await tryScrollForMore(session.page))) break;
+      if (!(await clickNext(session.page, pagesScanned, session.portal.key)) && !(await tryScrollForMore(session.page, session.portal.key))) break;
     }
 
     await prisma.scrapeRun.update({
