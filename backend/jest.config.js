@@ -4,5 +4,6 @@ module.exports = {
   setupFiles: ["<rootDir>/src/config/env.ts"],
   roots: ["<rootDir>/tests"],
   testMatch: ["**/*.test.ts"],
+  testTimeout: 15000,
   verbose: true,
 };

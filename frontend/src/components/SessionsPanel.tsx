@@ -1,19 +1,16 @@
-import { FormEvent, useEffect, useState } from "react";
-import { CheckCircle2, DatabaseBackup, Loader2, MinusCircle, Power, ShieldCheck, UserCog } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle2, DatabaseBackup, Loader2, MinusCircle, Power, UserCog } from "lucide-react";
 import {
   AdminSession,
   AdminUser,
   ApiError,
   BackupSummary,
-  createAdminUser,
   getAdminSessions,
   getAdminUsers,
   getBackups,
   revokeAdminSession,
   runBackupNow,
-  updateAdminUserRole,
 } from "@/lib/api";
-import { useAuth } from "@/lib/authContext";
 import { useToast } from "@/lib/toast";
 
 function relativeTime(iso: string): string {
@@ -33,16 +30,9 @@ function fmtBytes(bytes: number): string {
 }
 
 function UsersCard() {
-  const toast = useToast();
-  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [changing, setChanging] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"admin" | "user">("user");
-  const [creating, setCreating] = useState(false);
 
   async function load() {
     try {
@@ -61,57 +51,15 @@ function UsersCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function changeRole(user: AdminUser) {
-    const role = user.role === "admin" ? "user" : "admin";
-    setChanging(user.id);
-    try {
-      await updateAdminUserRole(user.id, role);
-      toast.success(`${user.email} is now ${role}.`);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Role update failed.");
-    } finally {
-      setChanging(null);
-    }
-  }
-
-  async function createUser(event: FormEvent) {
-    event.preventDefault();
-    setCreating(true);
-    try {
-      await createAdminUser(newEmail, newPassword, newRole);
-      toast.success(`${newEmail.trim().toLowerCase()} created.`);
-      setNewEmail("");
-      setNewPassword("");
-      setNewRole("user");
-      await load();
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "User creation failed.");
-    } finally {
-      setCreating(false);
-    }
-  }
-
   return (
     <div className="card">
       <div className="section-title"><UserCog size={15} /> Users ({users.length})</div>
-      <form className="admin-create-user" onSubmit={(event) => void createUser(event)}>
-        <input className="input" type="email" placeholder="User email" aria-label="New user email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} required />
-        <input className="input" type="password" placeholder="Temporary password" aria-label="New user password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} required />
-        <select className="input" aria-label="New user role" value={newRole} onChange={(event) => setNewRole(event.target.value as "admin" | "user")}>
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button className="btn" type="submit" disabled={creating}>
-          {creating ? <Loader2 size={12} className="spin" /> : <UserCog size={12} />} Create account
-        </button>
-      </form>
       {loading ? <div className="loading-state">Loading users…</div> : error ? (
         <div className="error-state">Unable to load users — {error}</div>
       ) : (
         <div className="table-wrap">
           <table className="run-table">
-            <thead><tr><th>Email</th><th>Role</th><th>Login</th><th>Sessions</th><th>Alerts</th><th>Joined</th><th>Action</th></tr></thead>
+            <thead><tr><th>Email</th><th>Role</th><th>Login</th><th>Sessions</th><th>Alerts</th><th>Joined</th></tr></thead>
             <tbody>{users.map((user) => (
               <tr key={user.id}>
                 <td>{user.email}</td>
@@ -120,10 +68,6 @@ function UsersCard() {
                 <td>{user.sessionCount}</td>
                 <td>{user.alertsActive ? `${user.alertKeywords.length} keywords` : "off"}</td>
                 <td title={new Date(user.createdAt).toLocaleString()}>{relativeTime(user.createdAt)}</td>
-                <td><button className="btn small secondary" disabled={changing === user.id || currentUser?.id === user.id} onClick={() => void changeRole(user)}>
-                  {changing === user.id ? <Loader2 size={12} className="spin" /> : <ShieldCheck size={12} />}
-                  {user.role === "admin" ? "Make user" : "Make admin"}
-                </button></td>
               </tr>
             ))}</tbody>
           </table>

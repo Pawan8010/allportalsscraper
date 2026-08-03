@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BellRing, Loader2, Save } from "lucide-react";
+import { BellRing, Loader2, Mail, Save } from "lucide-react";
 import {
   getAlertSubscription,
   saveAlertSubscription,
@@ -23,6 +23,7 @@ function relativeTime(iso: string): string {
 export default function AlertsPanel() {
   const toast = useToast();
   const [selected, setSelected] = useState<string[]>([]);
+  const [deliveryEmail, setDeliveryEmail] = useState("");
   const [active, setActive] = useState(true);
   const [history, setHistory] = useState<AlertHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +34,7 @@ export default function AlertsPanel() {
       try {
         const [sub, hist] = await Promise.all([getAlertSubscription(), getAlertHistory()]);
         setSelected(sub.keywords);
+        setDeliveryEmail(sub.deliveryEmail);
         setActive(sub.active);
         setHistory(hist.history);
       } catch (err) {
@@ -54,7 +56,7 @@ export default function AlertsPanel() {
   async function handleSave() {
     setSaving(true);
     try {
-      await saveAlertSubscription(selected, active);
+      await saveAlertSubscription(deliveryEmail, selected, active);
       toast.success("Alert preferences saved.");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Failed to save your alert settings.");
@@ -77,10 +79,20 @@ export default function AlertsPanel() {
           and sent as one digest — the same tender is never emailed twice.
         </p>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 13 }}>
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          Alerts are {active ? "on" : "off"}
-        </label>
+        <div className="alert-settings-grid">
+          <label className="alert-email-field">
+            <span>Send matching tenders to</span>
+            <div className="auth-input-wrap">
+              <Mail size={15} />
+              <input className="input" type="email" value={deliveryEmail} onChange={(event) => setDeliveryEmail(event.target.value)} placeholder="alerts@example.com" required />
+            </div>
+            <small>This can be different from your login email.</small>
+          </label>
+          <label className="alert-toggle">
+            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+            <span><strong>Alert delivery</strong><small>{active ? "Enabled" : "Paused"}</small></span>
+          </label>
+        </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {KEYWORD_CHIPS.map((k) => (
@@ -95,7 +107,7 @@ export default function AlertsPanel() {
           ))}
         </div>
 
-        <button className="btn" onClick={handleSave} disabled={saving}>
+        <button className="btn" onClick={handleSave} disabled={saving || !deliveryEmail.trim() || selected.length === 0}>
           {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />}
           Save preferences
         </button>
@@ -104,7 +116,7 @@ export default function AlertsPanel() {
       <div className="card">
         <div className="section-title">Recent alerts sent</div>
         {history.length === 0 ? (
-          <div className="empty-state">No alerts sent yet.</div>
+          <div className="empty-state alert-empty-state"><Mail size={22} /><strong>No alerts sent yet</strong><span>Saved keyword matches will appear here after a digest is delivered successfully.</span></div>
         ) : (
           <div className="table-wrap">
             <table className="run-table">

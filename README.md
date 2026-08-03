@@ -5,12 +5,19 @@ one orchestrator) covering GeM plus 22 additional Indian government
 procurement portals, built on Next.js + Express/TypeScript + Prisma +
 PostgreSQL.
 
-**Read `docs/ENVIRONMENT_LIMITATIONS.md` first.** This project was built in
-a sandboxed environment with no general internet access (npm registry and
-all `.gov.in`/`.nic.in` domains were blocked by the sandbox's network
-allowlist), so dependencies were never installed and no live scrape has been
-run yet. The code is complete and internally consistent; the steps below are
-what turns it into a running, verified system on your machine.
+The application includes authenticated cross-portal search, scheduled and
+manual scraping, relevance classification, keyword email alerts, session
+management, and PostgreSQL-backed tender storage.
+
+## Email alerts
+
+Each user can choose a delivery address independently from their login email
+on the **Alerts** screen. Digests contain newly matched tenders and are
+deduplicated so the same tender is not emailed to that user twice.
+
+Set `ALERTS_ENABLED=true` and configure the SMTP variables documented in
+`backend/.env.example` before expecting messages to be delivered. Saved alert
+history appears only after the mail provider confirms a successful send.
 
 ## What's here
 

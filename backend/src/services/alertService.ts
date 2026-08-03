@@ -66,7 +66,7 @@ export async function runAlertCycle(): Promise<{ usersNotified: number; tendersS
       if (toSend.length === 0) continue;
 
       const { subject, html, text } = buildEmail(toSend);
-      const sent = await sendAlertEmail(sub.user.email, subject, html, text);
+      const sent = await sendAlertEmail(sub.deliveryEmail || sub.user.email, subject, html, text);
       if (!sent) continue; // don't record as sent if the email never actually went out
 
       await prisma.alertSentLog.createMany({

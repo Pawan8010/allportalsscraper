@@ -285,21 +285,8 @@ export function getAdminUsers() {
   return apiFetch<{ users: AdminUser[]; count: number }>("/api/admin/users");
 }
 
-export function createAdminUser(email: string, password: string, role: "admin" | "user") {
-  return apiFetch<{ id: string; email: string; role: "admin" | "user"; createdAt: string }>("/api/admin/users", {
-    method: "POST",
-    body: JSON.stringify({ email, password, role }),
-  });
-}
-
-export function updateAdminUserRole(userId: string, role: "admin" | "user") {
-  return apiFetch<{ id: string; email: string; role: "admin" | "user" }>(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
-    method: "PATCH",
-    body: JSON.stringify({ role }),
-  });
-}
-
 export interface AlertSubscription {
+  deliveryEmail: string;
   keywords: string[];
   active: boolean;
 }
@@ -316,10 +303,10 @@ export function getAlertSubscription() {
   return apiFetch<AlertSubscription>("/api/alerts/subscription");
 }
 
-export function saveAlertSubscription(keywords: string[], active: boolean) {
+export function saveAlertSubscription(deliveryEmail: string, keywords: string[], active: boolean) {
   return apiFetch<AlertSubscription>("/api/alerts/subscription", {
     method: "PUT",
-    body: JSON.stringify({ keywords, active }),
+    body: JSON.stringify({ deliveryEmail, keywords, active }),
   });
 }
 

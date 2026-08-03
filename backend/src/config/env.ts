@@ -72,9 +72,8 @@ export const env = {
   // --- Authentication ---
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? "sid",
   sessionTtlHours: num("SESSION_TTL_HOURS", 720),
-  // Comma-separated emails auto-promoted to "admin" on signup. Primary
-  // source of truth for who becomes admin -- a User.count()===0 fallback
-  // only kicks in when this is unset, so a signup race can't decide it.
+  // Comma-separated allowlist of the only accounts permitted to be admins.
+  // When unset, every newly registered account is a regular user.
   adminEmails: (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())

@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { z } from "zod";
-import { createUserByAdmin, listSessions, listUsers, revokeSessionById, updateUserRole, AuthError } from "../services/authService";
+import { listSessions, listUsers, revokeSessionById } from "../services/authService";
 import { listBackups, runBackup } from "../services/backupService";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { ApiError } from "../middleware/errorHandler";
@@ -59,32 +58,6 @@ adminRouter.get("/admin/users", requireAdmin, async (_req, res, next) => {
       count: users.length,
     });
   } catch (err) {
-    next(err);
-  }
-});
-
-adminRouter.post("/admin/users", requireAdmin, async (req, res, next) => {
-  try {
-    const input = z.object({
-      email: z.string().trim().email("Enter a valid email address."),
-      password: z.string().min(8, "Password must be at least 8 characters."),
-      role: z.enum(["admin", "user"]).default("user"),
-    }).parse(req.body ?? {});
-    const user = await createUserByAdmin(input.email, input.password, input.role);
-    res.status(201).json(user);
-  } catch (err) {
-    if (err instanceof AuthError) return next(new ApiError(err.status, err.message));
-    next(err);
-  }
-});
-
-adminRouter.patch("/admin/users/:id/role", requireAdmin, async (req, res, next) => {
-  try {
-    const { role } = z.object({ role: z.enum(["admin", "user"]) }).parse(req.body ?? {});
-    const user = await updateUserRole(req.params.id, role, req.user!.id);
-    res.json(user);
-  } catch (err) {
-    if (err instanceof AuthError) return next(new ApiError(err.status, err.message));
     next(err);
   }
 });

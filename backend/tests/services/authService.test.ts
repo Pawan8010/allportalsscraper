@@ -67,8 +67,6 @@ import {
   validateSession,
   revokeSession,
   findOrCreateGoogleUser,
-  createUserByAdmin,
-  updateUserRole,
   revokeSessionById,
   AuthError,
 } from "../../src/services/authService";
@@ -100,9 +98,9 @@ describe("authService", () => {
       await expect(registerUser("foo@example.com", "password123", {})).rejects.toThrow(AuthError);
     });
 
-    it("makes the very first user admin when ADMIN_EMAILS is unset", async () => {
+    it("keeps the first user regular when ADMIN_EMAILS is unset", async () => {
       const { user } = await registerUser("first@example.com", "password123", {});
-      expect(user.role).toBe("admin");
+      expect(user.role).toBe("user");
     });
 
     it("does not make the second user admin", async () => {
@@ -113,7 +111,7 @@ describe("authService", () => {
 
     it("makes a user admin if their email is in ADMIN_EMAILS, even if not first", async () => {
       mockEnv.adminEmails = ["boss@example.com"];
-      await registerUser("first@example.com", "password123", {}); // would be admin-by-first-user if allowlist were empty
+      await registerUser("first@example.com", "password123", {});
       const { user } = await registerUser("boss@example.com", "password123", {});
       expect(user.role).toBe("admin");
       expect(users.find((u) => u.email === "first@example.com").role).toBe("user");
@@ -188,9 +186,9 @@ describe("authService", () => {
       expect(loggedIn.user.id).toBe(user.id);
     });
 
-    it("makes the very first-ever user admin even when they sign up via Google", async () => {
+    it("keeps a first Google user regular when ADMIN_EMAILS is unset", async () => {
       const { user } = await findOrCreateGoogleUser("google-sub-4", "first@example.com", {});
-      expect(user.role).toBe("admin");
+      expect(user.role).toBe("user");
     });
 
     it("returns a usable session token", async () => {
@@ -225,36 +223,6 @@ describe("authService", () => {
   });
 
   describe("admin account controls", () => {
-    it("creates a password account without storing plaintext", async () => {
-      const user = await createUserByAdmin("Managed@Example.com", "managed-password", "user");
-      expect(user.email).toBe("managed@example.com");
-      expect(users[0].passwordHash).toMatch(/^\$2[aby]\$/);
-      expect(users[0].passwordHash).not.toBe("managed-password");
-    });
-
-    it("rejects duplicate admin-created accounts", async () => {
-      await createUserByAdmin("managed@example.com", "managed-password", "user");
-      await expect(createUserByAdmin("MANAGED@example.com", "another-password", "user")).rejects.toThrow("already exists");
-    });
-
-    it("promotes a user to admin", async () => {
-      const first = await registerUser("admin@example.com", "password123", {});
-      const second = await registerUser("user@example.com", "password123", {});
-      const updated = await updateUserRole(second.user.id, "admin", first.user.id);
-      expect(updated.role).toBe("admin");
-    });
-
-    it("prevents an admin from demoting their own account", async () => {
-      const { user } = await registerUser("admin@example.com", "password123", {});
-      await expect(updateUserRole(user.id, "user", user.id)).rejects.toThrow("own admin access");
-    });
-
-    it("prevents demoting the final admin", async () => {
-      const first = await registerUser("first@example.com", "password123", {});
-      const second = await registerUser("second@example.com", "password123", {});
-      await expect(updateUserRole(first.user.id, "user", second.user.id)).rejects.toThrow("final admin");
-    });
-
     it("revokes an active session by id", async () => {
       await registerUser("session@example.com", "password123", {});
       expect(await revokeSessionById(sessions[0].id)).toBe(true);

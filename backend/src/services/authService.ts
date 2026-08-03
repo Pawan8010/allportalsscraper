@@ -18,12 +18,8 @@ function hashToken(rawToken: string): string {
   return crypto.createHash("sha256").update(rawToken).digest("hex");
 }
 
-async function roleForNewSignup(email: string): Promise<string> {
-  if (env.adminEmails.includes(email.toLowerCase())) return "admin";
-  // Only used when ADMIN_EMAILS is unset -- otherwise a signup race could
-  // decide who ends up admin.
-  if (env.adminEmails.length === 0 && (await prisma.user.count()) === 0) return "admin";
-  return "user";
+function roleForNewSignup(email: string): string {
+  return env.adminEmails.includes(email.toLowerCase()) ? "admin" : "user";
 }
 
 export interface SessionContext {
@@ -39,7 +35,7 @@ export async function registerUser(email: string, password: string, ctx: Session
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
-  const role = await roleForNewSignup(normalizedEmail);
+  const role = roleForNewSignup(normalizedEmail);
   const user = await prisma.user.create({
     data: { email: normalizedEmail, passwordHash, role },
   });
@@ -84,7 +80,7 @@ export async function findOrCreateGoogleUser(
     if (existingByEmail) {
       user = await prisma.user.update({ where: { id: existingByEmail.id }, data: { googleId } });
     } else {
-      const role = await roleForNewSignup(normalizedEmail);
+      const role = roleForNewSignup(normalizedEmail);
       user = await prisma.user.create({ data: { email: normalizedEmail, googleId, role } });
     }
   }
@@ -153,30 +149,6 @@ export async function listUsers() {
     },
     orderBy: { createdAt: "asc" },
   });
-}
-
-export async function createUserByAdmin(email: string, password: string, role: "admin" | "user") {
-  const normalizedEmail = email.trim().toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (existing) throw new AuthError("An account with this email already exists.", 409);
-  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
-  return prisma.user.create({
-    data: { email: normalizedEmail, passwordHash, role },
-    select: { id: true, email: true, role: true, createdAt: true },
-  });
-}
-
-export async function updateUserRole(userId: string, role: "admin" | "user", actingUserId: string) {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
-  if (!user) throw new AuthError("User not found.", 404);
-  if (user.id === actingUserId && role !== "admin") {
-    throw new AuthError("You cannot remove your own admin access.", 400);
-  }
-  if (user.role === "admin" && role === "user") {
-    const adminCount = await prisma.user.count({ where: { role: "admin" } });
-    if (adminCount <= 1) throw new AuthError("The final admin account cannot be demoted.", 400);
-  }
-  return prisma.user.update({ where: { id: userId }, data: { role }, select: { id: true, email: true, role: true } });
 }
 
 export async function revokeSessionById(sessionId: string): Promise<boolean> {

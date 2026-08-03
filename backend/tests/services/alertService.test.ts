@@ -59,6 +59,15 @@ describe("runAlertCycle", () => {
     expect(result).toEqual({ usersNotified: 1, tendersSent: 3 });
   });
 
+  it("sends to the subscription delivery email when one is configured", async () => {
+    subscriptions = [{ userId: "u1", deliveryEmail: "alerts@example.com", keywords: ["thermal"], user: { id: "u1", email: "login@example.com" } }];
+    searchTenders.mockResolvedValue({ rows: [tender("gem", "t1")], total: 1 });
+
+    await runAlertCycle();
+
+    expect(sendAlertEmail).toHaveBeenCalledWith("alerts@example.com", expect.any(String), expect.any(String), expect.any(String));
+  });
+
   it("de-duplicates a tender matched by more than one keyword within the same cycle", async () => {
     subscriptions = [{ userId: "u1", keywords: ["thermal", "camera"], user: { id: "u1", email: "u1@example.com" } }];
     searchTenders.mockImplementation(async ({ q }: { q: string }) => {

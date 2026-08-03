@@ -301,23 +301,24 @@ export default function Dashboard() {
 
             <div style={{ marginTop: 12 }}>
               <div className="section-title">Relevance</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div className="relevance-filter-grid">
                 {[
-                  { id: undefined, label: "All" },
-                  { id: "relevant", label: "Relevant" },
-                  { id: "irrelevant", label: "Parts/Non-defence" },
-                  { id: "unclassified", label: "Unclassified" },
+                  { id: undefined, label: "All", description: "Every matching tender" },
+                  { id: "relevant", label: "Relevant", description: "Defence and complete systems" },
+                  { id: "irrelevant", label: "Parts/Non-defence", description: "Spares, repairs, and civilian use" },
+                  { id: "unclassified", label: "Unclassified", description: "Not enough context to decide" },
                 ].map((opt) => (
                   <button
                     key={opt.label}
                     type="button"
-                    className={`chip ${selectedRelevance === opt.id ? "active" : ""}`}
+                    className={`relevance-filter ${selectedRelevance === opt.id ? "active" : ""}`}
                     onClick={() => {
                       setPage(1);
                       setSelectedRelevance(opt.id);
                     }}
                   >
-                    {opt.label}
+                    <strong>{opt.label}</strong>
+                    <span>{opt.description}</span>
                   </button>
                 ))}
               </div>

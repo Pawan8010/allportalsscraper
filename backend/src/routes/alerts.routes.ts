@@ -5,6 +5,7 @@ import { prisma } from "../services/prisma";
 export const alertsRouter = Router();
 
 const subscriptionSchema = z.object({
+  deliveryEmail: z.string().trim().email("Enter a valid alert email address."),
   keywords: z.array(z.string().trim().min(1)).max(50),
   active: z.boolean().default(true),
 });
@@ -15,7 +16,7 @@ const subscriptionSchema = z.object({
 alertsRouter.get("/alerts/subscription", async (req, res, next) => {
   try {
     const sub = await prisma.alertSubscription.findUnique({ where: { userId: req.user!.id } });
-    res.json(sub ?? { keywords: [], active: false });
+    res.json(sub ?? { deliveryEmail: req.user!.email, keywords: [], active: false });
   } catch (err) {
     next(err);
   }
@@ -23,11 +24,11 @@ alertsRouter.get("/alerts/subscription", async (req, res, next) => {
 
 alertsRouter.put("/alerts/subscription", async (req, res, next) => {
   try {
-    const { keywords, active } = subscriptionSchema.parse(req.body ?? {});
+    const { deliveryEmail, keywords, active } = subscriptionSchema.parse(req.body ?? {});
     const sub = await prisma.alertSubscription.upsert({
       where: { userId: req.user!.id },
-      create: { userId: req.user!.id, keywords, active },
-      update: { keywords, active },
+      create: { userId: req.user!.id, deliveryEmail, keywords, active },
+      update: { deliveryEmail, keywords, active },
     });
     res.json(sub);
   } catch (err) {
