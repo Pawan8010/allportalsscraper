@@ -4,8 +4,6 @@ A production-oriented tender aggregation, scraping, search, alerting, and admini
 
 The application collects publicly available tender listings from 22 configured procurement sources, normalises them into PostgreSQL, prevents duplicate records, ranks cross-portal search results, classifies relevance, sends keyword-matched email digests, and exposes scraper health and administration controls through a responsive Next.js dashboard.
 
-> This project does not bypass CAPTCHA, OTP, authentication, or portal access controls. Automatic adapters use public interfaces. IREPS uses an assisted browser flow because its guest tender search requires a real mobile OTP.
-
 ## Features
 
 - **22 portal registry** with independent enable flags, rate limits, adapters, and status reporting.
