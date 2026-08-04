@@ -57,6 +57,11 @@ function isStructuredReference(value: string): boolean {
   );
 }
 
+function isRawReferenceCandidate(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length >= 3 && (/^\d+$/.test(trimmed) || /[/_.:&,-]/.test(trimmed));
+}
+
 export async function searchTenders(params: SearchParams) {
   const page = Math.max(1, params.page ?? 1);
   const limit = Math.min(100, Math.max(1, params.limit ?? 20));
@@ -110,6 +115,36 @@ export async function searchTenders(params: SearchParams) {
     `);
     const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
     return { rows: rows.map(({ total_count: _total_count, ...row }) => row), total };
+  }
+
+  const rawQuery = params.q?.normalize("NFKC").trim();
+  if (rawTerms.length === 1 && rawQuery && isRawReferenceCandidate(rawQuery)) {
+    const rawReferenceConditions = [
+      ...conditions,
+      Prisma.sql`(
+        lower("tenderId") = lower(${rawQuery}) OR
+        "tenderId" ILIKE ${"%" + rawQuery + "%"} OR
+        title ILIKE ${"%" + rawQuery + "%"} OR
+        description ILIKE ${"%" + rawQuery + "%"}
+      )`,
+    ];
+    const where = Prisma.sql`WHERE ${Prisma.join(rawReferenceConditions, " AND ")}`;
+    const rows = await prisma.$queryRaw<(SearchResultRow & { total_count: bigint })[]>(Prisma.sql`
+      SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, relevance, "publishedDate", "closingDate", "tenderURL",
+        (
+          CASE WHEN lower("tenderId") = lower(${rawQuery}) THEN 10000 ELSE 0 END +
+          CASE WHEN "tenderId" ILIKE ${"%" + rawQuery + "%"} THEN 8000 ELSE 0 END +
+          CASE WHEN title ILIKE ${"%" + rawQuery + "%"} THEN 6000 ELSE 0 END +
+          CASE WHEN description ILIKE ${"%" + rawQuery + "%"} THEN 4000 ELSE 0 END
+        ) AS rank,
+        COUNT(*) OVER() AS total_count
+      FROM "Tender"
+      ${where}
+      ORDER BY rank DESC, "publishedDate" DESC NULLS LAST
+      OFFSET ${offset} LIMIT ${limit}
+    `);
+    const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    if (total > 0) return { rows: rows.map(({ total_count: _total_count, ...row }) => row), total };
   }
 
   const normalized = normalizeQuery(rawTerms.join(" "));

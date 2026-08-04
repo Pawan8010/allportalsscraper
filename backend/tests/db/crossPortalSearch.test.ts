@@ -47,4 +47,42 @@ describeIfDb("cross-portal structured reference search", () => {
     expect(result.rows[0]).toMatchObject({ portal, tenderId });
     expect(result.total).toBe(1);
   });
+
+  it("finds a numeric-only portal tender id exactly", async () => {
+    const numericTenderId = "99136373";
+    await prisma.tender.create({
+      data: {
+        portal,
+        portalName: "Test Cross Portal",
+        tenderId: numericTenderId,
+        title: "Municipal drainage construction",
+        tenderURL: "https://example.test/bihar/136373",
+        sourceUrl: "https://example.test/bihar/136373",
+        contentHash: "numeric-reference-test",
+        closingDate: new Date(Date.now() + 86_400_000),
+      },
+    });
+
+    const result = await searchTenders({ q: numericTenderId });
+    expect(result.rows.some((row) => row.portal === portal && row.tenderId === numericTenderId)).toBe(true);
+  });
+
+  it("finds an exact reference containing portal punctuation", async () => {
+    const punctuatedTenderId = "TEST/R&B/KBASF5/13/2099-27, Dt:23.07.2099";
+    await prisma.tender.create({
+      data: {
+        portal,
+        portalName: "Test Cross Portal",
+        tenderId: punctuatedTenderId,
+        title: "Annual maintenance",
+        tenderURL: "https://example.test/telangana/reference",
+        sourceUrl: "https://example.test/telangana/reference",
+        contentHash: "punctuation-reference-test",
+        closingDate: new Date(Date.now() + 86_400_000),
+      },
+    });
+
+    const result = await searchTenders({ q: punctuatedTenderId });
+    expect(result.rows.some((row) => row.portal === portal && row.tenderId === punctuatedTenderId)).toBe(true);
+  });
 });
