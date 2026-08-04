@@ -40,26 +40,72 @@ The application collects publicly available tender listings from 22 configured p
 ## Architecture
 
 ```mermaid
-flowchart LR
-    U["User or Admin"] --> F["Next.js Frontend :3000"]
-    F -->|"HTTP-only session cookie"| A["Express API :4000"]
-    A --> AU["Authentication and Sessions"]
-    A --> SE["Search Service"]
-    A --> OR["Scrape Orchestrator"]
-    A --> AL["Alert Service"]
-    A --> BA["Backup Service"]
-    OR --> RG["Portal Registry"]
-    RG --> GE["GeM API Adapter"]
-    RG --> GP["GePNIC Organisation Crawlers"]
-    RG --> SP["Portal-specific JSON and HTML Adapters"]
-    RG --> AS["Assisted IREPS Browser Session"]
-    AU --> DB[("PostgreSQL")]
-    SE --> DB
-    OR --> DB
-    AL --> DB
-    BA --> DB
-    AL --> SMTP["Configured SMTP Provider"]
-    SMTP --> MX["One or more validated alert recipients"]
+flowchart TB
+    subgraph CLIENTS["Client Layer"]
+        VISITOR["Public Visitor"]
+        USER["Authenticated User"]
+        ADMIN["Administrator"]
+        UI["Next.js 14 Frontend<br/>localhost:3000"]
+        VISITOR --> UI
+        USER --> UI
+        ADMIN --> UI
+    end
+
+    subgraph API["Application Layer - Express API localhost:4000"]
+        AUTH["Email and Password Authentication<br/>bcrypt + HTTP-only sessions"]
+        SEARCH["Ranked Cross-Portal Search<br/>aliases + fuzzy matching + filters"]
+        SCRAPE["Scrape Orchestrator<br/>full + incremental + per-portal locks"]
+        ALERTS["Matched Tender Alert Service<br/>per-user permanent deduplication"]
+        LIFECYCLE["Tender Lifecycle Service<br/>cleanup + permanent tombstones"]
+        ADMINAPI["Admin Services<br/>sessions + SMTP + backups"]
+        SCHEDULER["node-cron Scheduler<br/>hourly incremental + daily full sweep"]
+    end
+
+    UI -->|"REST API + session cookie"| AUTH
+    UI -->|"search, filters, pagination"| SEARCH
+    UI -->|"scrape controls"| SCRAPE
+    UI -->|"alert preferences"| ALERTS
+    UI -->|"admin-only operations"| ADMINAPI
+    SCHEDULER --> SCRAPE
+    SCHEDULER --> LIFECYCLE
+    SCHEDULER --> ADMINAPI
+
+    subgraph SOURCES["Government Procurement Sources"]
+        GEM["GeM JSON/API Adapter"]
+        GEPNIC["GePNIC Organisation Crawlers<br/>CPPP, Defence and state portals"]
+        SPECIAL["Portal-Specific Adapters<br/>Karnataka, Bihar, Gujarat, Telangana, AP"]
+        IREPS["IREPS Assisted Browser<br/>user completes official OTP"]
+    end
+
+    SCRAPE --> GEM
+    SCRAPE --> GEPNIC
+    SCRAPE --> SPECIAL
+    SCRAPE --> IREPS
+
+    subgraph DATA["Data Layer"]
+        DB[("PostgreSQL")]
+        PRISMA["Prisma ORM + Migrations"]
+        BACKUPS["Timestamped JSON Backups"]
+        PRISMA --> DB
+    end
+
+    AUTH --> PRISMA
+    SEARCH --> PRISMA
+    SCRAPE -->|"normalise, classify, hash, upsert"| PRISMA
+    ALERTS --> PRISMA
+    LIFECYCLE -->|"delete closed or suppressed tenders"| PRISMA
+    ADMINAPI --> PRISMA
+    ADMINAPI --> BACKUPS
+
+    subgraph DELIVERY["Notification Layer"]
+        SMTP["Encrypted SMTP Configuration"]
+        GMAIL["SMTP Provider / Gmail"]
+        RECIPIENTS["1-10 Alert Recipients"]
+        SMTP --> GMAIL --> RECIPIENTS
+    end
+
+    ADMINAPI --> SMTP
+    ALERTS -->|"deduplicated matched-tender digest"| SMTP
 ```
 
 ### Runtime Connection Map
