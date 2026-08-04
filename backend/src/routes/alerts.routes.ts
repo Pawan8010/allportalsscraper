@@ -4,8 +4,16 @@ import { prisma } from "../services/prisma";
 
 export const alertsRouter = Router();
 
+const emailAddress = z.string().trim().email();
 const subscriptionSchema = z.object({
-  deliveryEmail: z.string().trim().email("Enter a valid alert email address."),
+  deliveryEmail: z.string().trim().transform((value, context) => {
+    const addresses = [...new Set(value.split(/[;,\n]/).map((item) => item.trim().toLowerCase()).filter(Boolean))];
+    if (addresses.length === 0 || addresses.length > 10 || addresses.some((address) => !emailAddress.safeParse(address).success)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Enter 1 to 10 valid email addresses separated by commas." });
+      return z.NEVER;
+    }
+    return addresses.join(", ");
+  }),
   keywords: z.array(z.string().trim().min(1)).max(50),
   active: z.boolean().default(true),
 });

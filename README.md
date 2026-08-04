@@ -60,6 +60,31 @@ flowchart LR
     AL --> DB
     BA --> DB
     AL --> SMTP["Configured SMTP Provider"]
+    SMTP --> MX["One or more validated alert recipients"]
+```
+
+### Runtime Connection Map
+
+```mermaid
+sequenceDiagram
+    participant Portal as Government Portal
+    participant Adapter as Portal Adapter
+    participant API as Express API
+    participant DB as PostgreSQL
+    participant Search as Search Service
+    participant Mail as SMTP Provider
+    participant User as Browser/User
+
+    Portal->>Adapter: Public listing/API response
+    Adapter->>API: Normalised PortalTender records
+    API->>DB: Tombstone check + insert/update/deduplicate
+    User->>API: Authenticated search and filters
+    API->>Search: Ranked full-text query
+    Search->>DB: Indexed cross-portal search
+    DB-->>User: Paginated tender results
+    API->>DB: Match active alert keywords after scrape
+    API->>Mail: One deduplicated digest per subscription
+    Mail-->>User: Tender alert to configured recipients
 ```
 
 ### Repository Structure
@@ -343,7 +368,7 @@ Admins can also click **Delete permanently** on a search result. This operation:
 
 Users can configure:
 
-- a recipient address independent of their login email;
+- one to ten recipient addresses independent of their login email, separated by commas;
 - up to 50 keywords;
 - whether the subscription is active.
 
