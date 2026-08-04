@@ -1,0 +1,2 @@
+DELETE FROM "User" WHERE "passwordHash" IS NULL;
+ALTER TABLE "User" ALTER COLUMN "passwordHash" SET NOT NULL;

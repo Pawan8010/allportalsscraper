@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { OAuth2Client } from "google-auth-library";
-import { registerUser, loginUser, revokeSession, findOrCreateGoogleUser, AuthError } from "../services/authService";
+import { registerUser, loginUser, revokeSession, AuthError } from "../services/authService";
 import { requireAuth } from "../middleware/requireAuth";
 import { authLimiter } from "../middleware/rateLimit";
 import { ApiError } from "../middleware/errorHandler";
@@ -13,19 +12,6 @@ const credentialsSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
 });
-
-const googleCredentialSchema = z.object({
-  credential: z.string().min(1, "Missing Google credential."),
-});
-
-// Built lazily (not at module load) so a missing GOOGLE_CLIENT_ID never
-// crashes the whole backend on startup -- just this one route, with a
-// clear error, until it's configured.
-let googleClient: OAuth2Client | null = null;
-function getGoogleClient(): OAuth2Client {
-  if (!googleClient) googleClient = new OAuth2Client(env.googleClientId);
-  return googleClient;
-}
 
 function sessionContext(req: import("express").Request) {
   return { ipAddress: req.ip ?? null, userAgent: req.get("user-agent") ?? null };
@@ -67,37 +53,6 @@ authRouter.post("/auth/login", authLimiter, async (req, res, next) => {
   try {
     const { email, password } = credentialsSchema.parse(req.body ?? {});
     const { user, rawToken, expiresAt } = await loginUser(email, password, sessionContext(req));
-    setSessionCookie(res, rawToken, expiresAt);
-    res.json({ id: user.id, email: user.email, role: user.role });
-  } catch (err) {
-    if (err instanceof AuthError) return next(new ApiError(err.status, err.message));
-    next(err);
-  }
-});
-
-authRouter.post("/auth/google", authLimiter, async (req, res, next) => {
-  try {
-    if (!env.googleClientId) {
-      throw new AuthError("Sign in with Google is not configured on this server yet.", 503);
-    }
-    const { credential } = googleCredentialSchema.parse(req.body ?? {});
-
-    // Verifies the JWT's signature against Google's public keys and that
-    // its audience matches our own Client ID -- this is what actually
-    // proves the credential came from Google and names this app, not just
-    // that it's well-formed. Throws for anything forged/expired/wrong-audience.
-    const ticket = await getGoogleClient()
-      .verifyIdToken({ idToken: credential, audience: env.googleClientId })
-      .catch(() => null);
-    const payload = ticket?.getPayload();
-    if (!payload?.sub || !payload.email) {
-      throw new AuthError("Could not verify Google credential.", 401);
-    }
-    if (!payload.email_verified) {
-      throw new AuthError("Your Google email is not verified.", 401);
-    }
-
-    const { user, rawToken, expiresAt } = await findOrCreateGoogleUser(payload.sub, payload.email, sessionContext(req));
     setSessionCookie(res, rawToken, expiresAt);
     res.json({ id: user.id, email: user.email, role: user.role });
   } catch (err) {

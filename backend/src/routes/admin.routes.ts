@@ -51,7 +51,7 @@ adminRouter.get("/admin/users", requireAdmin, async (_req, res, next) => {
         id: user.id,
         email: user.email,
         role: user.role,
-        loginMethods: [user.passwordHash ? "password" : null, user.googleId ? "google" : null].filter(Boolean),
+        loginMethods: user.passwordHash ? ["password"] : [],
         sessionCount: user._count.sessions,
         alertCount: user._count.alertSentLogs,
         alertsActive: user.alertSubscription?.active ?? false,

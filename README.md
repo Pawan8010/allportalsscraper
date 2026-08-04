@@ -15,7 +15,6 @@ The application collects publicly available tender listings from 22 configured p
 - **Tender lifecycle management** that removes closed tenders and prevents their accidental resurrection.
 - **Permanent admin deletion** that creates a database tombstone so manually deleted tenders are never imported again.
 - **Email/password authentication** using bcrypt password hashes and secure database-backed sessions.
-- **Google Sign-In support** when a Google OAuth Client ID is configured.
 - **Admin console** for users, active sessions, session revocation, backups, SMTP settings, test messages, and immediate matched-alert delivery.
 - **Keyword email alerts** with per-user recipient addresses and permanent per-user tender deduplication.
 - **Encrypted SMTP credentials** stored with AES-256-GCM and never returned to the browser.
@@ -32,7 +31,7 @@ The application collects publicly available tender listings from 22 configured p
 | Database | PostgreSQL 16, Prisma ORM |
 | Scraping | Axios, Cheerio, Playwright for assisted sessions |
 | Scheduling | node-cron |
-| Authentication | bcryptjs, SHA-256 session-token hashes, HTTP-only cookies, Google Auth Library |
+| Authentication | bcryptjs, SHA-256 session-token hashes, HTTP-only cookies |
 | Email | Nodemailer, admin-managed SMTP |
 | Logging | Pino |
 | Tests | Jest, ts-jest |
@@ -277,7 +276,6 @@ The complete template is `backend/.env.example`. Important variables include:
 | `TENDER_CLEANUP_ENABLED` | Remove closed tenders | `true` |
 | `ADMIN_EMAILS` | Comma-separated admin allowlist | Empty |
 | `SESSION_TTL_HOURS` | Session lifetime | `720` |
-| `GOOGLE_CLIENT_ID` | Enables Google Sign-In | Empty |
 | `MAIL_SETTINGS_KEY` | Encrypts admin-saved SMTP password | Required for Admin SMTP |
 | `BACKUP_ENABLED` | Enables scheduled backups | `true` |
 | `BACKUP_RETENTION_DAYS` | Local backup retention | `14` |
@@ -293,16 +291,6 @@ Every portal also has an independent `PORTAL_<KEY>_ENABLED` setting.
 - Admin accounts are controlled by `ADMIN_EMAILS`.
 - Admin-only APIs enforce authorization on the backend; hiding UI controls is not treated as security.
 - Admins can inspect and revoke active sessions.
-
-To enable Google Sign-In, create a Web OAuth Client ID in Google Cloud, add the frontend origin, and set the same ID in:
-
-```env
-# backend/.env
-GOOGLE_CLIENT_ID=...
-
-# frontend/.env.local
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=...
-```
 
 ## Scraping
 
@@ -414,7 +402,6 @@ All `/api` routes except authentication require a valid session.
 | `GET` | `/health` | Public | API and database health |
 | `POST` | `/api/auth/register` | Public | Create account |
 | `POST` | `/api/auth/login` | Public | Password login |
-| `POST` | `/api/auth/google` | Public | Google login |
 | `GET` | `/api/auth/me` | User | Current user |
 | `GET` | `/api/tenders/search` | User | Ranked tender search |
 | `GET` | `/api/tenders/stats` | User | Dashboard statistics |

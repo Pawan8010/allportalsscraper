@@ -878,23 +878,6 @@ tbody tr:hover { background: rgba(31, 182, 201, 0.05); }
 .auth-switch a { color: var(--cyan-300); text-decoration: none; cursor: pointer; }
 .auth-switch a:hover { text-decoration: underline; }
 
-.google-btn-wrap { margin-top: var(--space-2); }
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: var(--space-4) 0;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-.auth-divider::before, .auth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-.google-btn-target { display: flex; justify-content: center; }
-
 .auth-page-cinematic {
   position: relative;
   overflow: hidden;

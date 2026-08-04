@@ -79,12 +79,6 @@ export const env = {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
 
-  // --- Google Sign-In ---
-  // Empty until a real Client ID from Google Cloud Console is added --
-  // the route checks this and returns a clear error rather than trying
-  // (and failing confusingly) to verify against an empty audience.
-  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
-
   // --- Email alerts ---
   alertsEnabled: bool("ALERTS_ENABLED", false),
   smtpHost: process.env.SMTP_HOST ?? "smtp.gmail.com",

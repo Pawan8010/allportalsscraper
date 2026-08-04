@@ -6,7 +6,6 @@ import {
   login as apiLogin,
   logout as apiLogout,
   registerAccount,
-  loginWithGoogle as apiLoginWithGoogle,
   ApiError,
   AUTH_SESSION_EXPIRED_EVENT,
 } from "./api";
@@ -16,7 +15,6 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -79,9 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     register: async (email, password) => {
       setUser(await registerAccount(email, password));
-    },
-    loginWithGoogle: async (credential) => {
-      setUser(await apiLoginWithGoogle(credential));
     },
     logout: async () => {
       await apiLogout().catch(() => undefined);

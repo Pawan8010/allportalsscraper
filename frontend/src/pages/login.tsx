@@ -3,7 +3,6 @@ import Link from "next/link";
 import { LogIn, Loader2, LockKeyhole, Mail } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { ApiError } from "@/lib/api";
-import GoogleSignInButton from "@/components/GoogleSignInButton";
 import AuthShell from "@/components/AuthShell";
 
 export default function LoginPage() {
@@ -64,8 +63,6 @@ export default function LoginPage() {
             Log in
           </button>
         </form>
-
-        <GoogleSignInButton />
 
         <div className="auth-switch">
           Don&apos;t have an account? <Link href="/signup">Sign up</Link>
