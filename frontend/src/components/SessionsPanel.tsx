@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, DatabaseBackup, Loader2, MinusCircle, Power, UserCog } from "lucide-react";
+import { CheckCircle2, DatabaseBackup, Loader2, Mail, MinusCircle, Power, Save, Send, Server, UserCog } from "lucide-react";
 import {
   AdminSession,
   AdminUser,
   ApiError,
   BackupSummary,
+  AdminMailSettings,
+  getAdminMailSettings,
   getAdminSessions,
   getAdminUsers,
   getBackups,
   revokeAdminSession,
   runBackupNow,
+  saveAdminMailSettings,
+  sendAdminTestEmail,
+  runAdminAlertCycle,
 } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 
@@ -173,6 +178,116 @@ function BackupsCard() {
   );
 }
 
+const EMPTY_MAIL_SETTINGS: AdminMailSettings = {
+  enabled: false,
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
+  username: "",
+  fromEmail: "",
+  passwordConfigured: false,
+  source: "environment",
+};
+
+function MailSettingsCard() {
+  const toast = useToast();
+  const [settings, setSettings] = useState<AdminMailSettings>(EMPTY_MAIL_SETTINGS);
+  const [password, setPassword] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [sendingAlerts, setSendingAlerts] = useState(false);
+
+  useEffect(() => {
+    getAdminMailSettings()
+      .then((result) => {
+        setSettings(result);
+        setTestEmail(result.fromEmail);
+      })
+      .catch((err) => toast.error(err instanceof ApiError ? err.message : "Could not load mail settings."))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function update<K extends keyof AdminMailSettings>(key: K, value: AdminMailSettings[K]) {
+    setSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const result = await saveAdminMailSettings({
+        enabled: settings.enabled,
+        host: settings.host,
+        port: settings.port,
+        secure: settings.secure,
+        username: settings.username,
+        fromEmail: settings.fromEmail,
+        ...(password ? { password } : {}),
+      });
+      setSettings(result);
+      setPassword("");
+      if (!testEmail) setTestEmail(result.fromEmail);
+      toast.success("SMTP settings saved securely.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not save SMTP settings.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function sendTest() {
+    setTesting(true);
+    try {
+      await sendAdminTestEmail(testEmail);
+      toast.success(`Test email sent to ${testEmail}.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "SMTP test failed.");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function sendMatchedAlerts() {
+    setSendingAlerts(true);
+    try {
+      const result = await runAdminAlertCycle();
+      toast.success(`Alert cycle complete: ${result.tendersSent} tenders sent to ${result.usersNotified} users.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not run the alert cycle.");
+    } finally {
+      setSendingAlerts(false);
+    }
+  }
+
+  if (loading) return <div className="loading-state">Loading mail settings…</div>;
+  return (
+    <div className="card">
+      <div className="section-title"><Mail size={15} /> Email delivery</div>
+      <p className="admin-card-copy">Configure the SMTP account used for matched-tender digests. The password is encrypted and is never returned to the browser.</p>
+      <div className="mail-settings-grid">
+        <label><span>SMTP host</span><div className="auth-input-wrap"><Server size={15} /><input className="input" value={settings.host} onChange={(event) => update("host", event.target.value)} /></div></label>
+        <label><span>Port</span><input className="input" type="number" min={1} max={65535} value={settings.port} onChange={(event) => update("port", Number(event.target.value))} /></label>
+        <label><span>SMTP username</span><input className="input" type="email" value={settings.username} onChange={(event) => update("username", event.target.value)} /></label>
+        <label><span>From email</span><input className="input" type="email" value={settings.fromEmail} onChange={(event) => update("fromEmail", event.target.value)} /></label>
+        <label className="mail-password"><span>SMTP app password</span><input className="input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={settings.passwordConfigured ? "Saved — leave blank to keep" : "Enter app password"} /></label>
+        <div className="mail-options">
+          <label><input type="checkbox" checked={settings.secure} onChange={(event) => update("secure", event.target.checked)} /> TLS/SSL</label>
+          <label><input type="checkbox" checked={settings.enabled} onChange={(event) => update("enabled", event.target.checked)} /> Enable delivery</label>
+        </div>
+      </div>
+      <div className="mail-settings-actions">
+        <button className="btn" onClick={() => void save()} disabled={saving || !settings.host || !settings.username || !settings.fromEmail || (!password && !settings.passwordConfigured)}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} Save mail settings</button>
+        <input className="input" type="email" value={testEmail} onChange={(event) => setTestEmail(event.target.value)} placeholder="Test recipient email" />
+        <button className="btn secondary" onClick={() => void sendTest()} disabled={testing || !settings.passwordConfigured || !testEmail}>{testing ? <Loader2 size={13} className="spin" /> : <Send size={13} />} Send test</button>
+        <button className="btn secondary" onClick={() => void sendMatchedAlerts()} disabled={sendingAlerts || !settings.enabled || !settings.passwordConfigured}>{sendingAlerts ? <Loader2 size={13} className="spin" /> : <Send size={13} />} Send matched alerts now</button>
+      </div>
+      <div className="assisted-hint">Source: {settings.source}. {settings.passwordConfigured ? "Password configured." : "Password not configured."}</div>
+    </div>
+  );
+}
+
 export default function SessionsPanel() {
-  return <><UsersCard /><SessionsCard /><BackupsCard /></>;
+  return <><MailSettingsCard /><UsersCard /><SessionsCard /><BackupsCard /></>;
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, ShieldCheck, MapPin, CalendarDays, Clock, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Building2, ShieldCheck, MapPin, CalendarDays, Clock, ExternalLink, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { TenderRow } from "@/lib/api";
 
 // GeM "custom bid" titles are sometimes a single comma-separated list of
@@ -49,7 +49,7 @@ function fmtDateTime(iso: string): string {
   });
 }
 
-export default function TenderCard({ tender }: { tender: TenderRow }) {
+export default function TenderCard({ tender, canDelete = false, deleting = false, onDelete }: { tender: TenderRow; canDelete?: boolean; deleting?: boolean; onDelete?: (tender: TenderRow) => void }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = tender.title.length > CLAMP_LENGTH;
   const urgency = closingUrgency(tender.closingDate);
@@ -72,10 +72,18 @@ export default function TenderCard({ tender }: { tender: TenderRow }) {
             </button>
           )}
         </div>
-        <a href={tender.tenderURL} target="_blank" rel="noreferrer" className="open-portal-btn">
-          Open {shortName} Portal
-          <ExternalLink size={13} />
-        </a>
+        <div className="tender-card-actions">
+          {canDelete && (
+            <button type="button" className="delete-tender-btn" disabled={deleting} onClick={() => onDelete?.(tender)} title="Permanently delete and prevent future scraping">
+              <Trash2 size={13} />
+              {deleting ? "Deleting…" : "Delete permanently"}
+            </button>
+          )}
+          <a href={tender.tenderURL} target="_blank" rel="noreferrer" className="open-portal-btn">
+            Open {shortName} Portal
+            <ExternalLink size={13} />
+          </a>
+        </div>
       </div>
 
       <div className="meta">

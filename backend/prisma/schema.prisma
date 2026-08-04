@@ -178,3 +178,15 @@ model ScrapeRun {
   @@index([status])
   @@index([startedAt])
 }
+
+model SmtpSettings {
+  id                String   @id
+  enabled           Boolean  @default(false)
+  host              String
+  port              Int
+  secure            Boolean  @default(true)
+  username          String
+  encryptedPassword String
+  fromEmail         String
+  updatedAt         DateTime @updatedAt
+}

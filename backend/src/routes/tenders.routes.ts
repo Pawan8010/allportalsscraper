@@ -2,8 +2,37 @@ import { Router } from "express";
 import { searchTenders, getPortalCounts } from "../services/searchService";
 import { PORTAL_REGISTRY } from "../portals/portalRegistry";
 import { prisma } from "../services/prisma";
+import { requireAdmin } from "../middleware/requireAdmin";
+import { ApiError } from "../middleware/errorHandler";
 
 export const tendersRouter = Router();
+
+tendersRouter.delete("/tenders/:id", requireAdmin, async (req, res, next) => {
+  try {
+    const tender = await prisma.tender.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, portal: true, tenderId: true, closingDate: true },
+    });
+    if (!tender) return next(new ApiError(404, "Tender not found."));
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.expiredTender.upsert({
+        where: { portal_tenderId: { portal: tender.portal, tenderId: tender.tenderId } },
+        create: {
+          portal: tender.portal,
+          tenderId: tender.tenderId,
+          closedAt: tender.closingDate ?? new Date(),
+        },
+        update: {},
+      });
+      await transaction.tender.delete({ where: { id: tender.id } });
+    });
+
+    res.json({ deleted: true, portal: tender.portal, tenderId: tender.tenderId, permanentlySuppressed: true });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Mirrors the frontend's keyword chips (both are seeded from the "Specific
 // Keywords" table in the uploaded PDF) so "Keyword Matches" on the stats bar

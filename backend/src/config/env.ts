@@ -92,6 +92,7 @@ export const env = {
   smtpUser: process.env.SMTP_USER ?? "",
   smtpAppPassword: process.env.SMTP_APP_PASSWORD ?? "",
   alertFromEmail: process.env.ALERT_FROM_EMAIL ?? process.env.SMTP_USER ?? "",
+  mailSettingsKey: process.env.MAIL_SETTINGS_KEY ?? "",
 
   // --- Local backups ---
   backupEnabled: bool("BACKUP_ENABLED", true),

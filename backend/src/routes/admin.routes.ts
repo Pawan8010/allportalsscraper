@@ -1,8 +1,12 @@
 import { Router } from "express";
+import { z } from "zod";
 import { listSessions, listUsers, revokeSessionById } from "../services/authService";
 import { listBackups, runBackup } from "../services/backupService";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { ApiError } from "../middleware/errorHandler";
+import { getPublicSmtpSettings, saveSmtpSettings } from "../services/smtpSettingsService";
+import { sendSmtpTestEmail, verifySmtpConnection } from "../services/mailer";
+import { runAlertCycle } from "../services/alertService";
 
 export const adminRouter = Router();
 
@@ -77,6 +81,50 @@ adminRouter.post("/admin/backups/run", requireAdmin, async (_req, res, next) => 
   try {
     const { dir, counts } = await runBackup();
     res.json({ dir, counts });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get("/admin/mail-settings", requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await getPublicSmtpSettings());
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.put("/admin/mail-settings", requireAdmin, async (req, res, next) => {
+  try {
+    const input = z.object({
+      enabled: z.boolean(),
+      host: z.string().trim().min(1),
+      port: z.number().int().min(1).max(65535),
+      secure: z.boolean(),
+      username: z.string().trim().min(1),
+      password: z.string().optional(),
+      fromEmail: z.string().trim().email(),
+    }).parse(req.body ?? {});
+    res.json(await saveSmtpSettings(input));
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post("/admin/mail-settings/test", requireAdmin, async (req, res, next) => {
+  try {
+    const { to } = z.object({ to: z.string().trim().email() }).parse(req.body ?? {});
+    await verifySmtpConnection();
+    await sendSmtpTestEmail(to);
+    res.json({ sent: true, to });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.post("/admin/alerts/run", requireAdmin, async (_req, res, next) => {
+  try {
+    res.json(await runAlertCycle());
   } catch (err) {
     next(err);
   }

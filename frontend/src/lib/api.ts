@@ -266,6 +266,13 @@ export function getAdminSessions() {
   return apiFetch<{ sessions: AdminSession[]; count: number }>("/api/admin/sessions");
 }
 
+export function permanentlyDeleteTender(id: string) {
+  return apiFetch<{ deleted: true; portal: string; tenderId: string; permanentlySuppressed: true }>(
+    `/api/tenders/${encodeURIComponent(id)}`,
+    { method: "DELETE" }
+  );
+}
+
 export function revokeAdminSession(sessionId: string) {
   return apiFetch<{ revoked: boolean }>(`/api/admin/sessions/${encodeURIComponent(sessionId)}/revoke`, { method: "POST" });
 }
@@ -328,4 +335,40 @@ export function getBackups() {
 
 export function runBackupNow() {
   return apiFetch<{ dir: string; counts: Record<string, number> }>("/api/admin/backups/run", { method: "POST" });
+}
+
+export interface AdminMailSettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  fromEmail: string;
+  passwordConfigured: boolean;
+  source: "database" | "environment";
+  updatedAt?: string;
+}
+
+export function getAdminMailSettings() {
+  return apiFetch<AdminMailSettings>("/api/admin/mail-settings");
+}
+
+export function saveAdminMailSettings(settings: Omit<AdminMailSettings, "passwordConfigured" | "source" | "updatedAt"> & { password?: string }) {
+  return apiFetch<AdminMailSettings>("/api/admin/mail-settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}
+
+export function sendAdminTestEmail(to: string) {
+  return apiFetch<{ sent: true; to: string }>("/api/admin/mail-settings/test", {
+    method: "POST",
+    body: JSON.stringify({ to }),
+  });
+}
+
+export function runAdminAlertCycle() {
+  return apiFetch<{ usersNotified: number; tendersSent: number }>("/api/admin/alerts/run", {
+    method: "POST",
+  });
 }

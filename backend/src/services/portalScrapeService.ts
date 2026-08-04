@@ -99,12 +99,10 @@ export async function upsertTenders(
       const existing = await prisma.tender.findUnique({
         where: { portal_tenderId: { portal: t.portal, tenderId: t.tenderId } },
       });
-      const permanentlyExpired = existing
-        ? null
-        : await prisma.expiredTender.findUnique({
-            where: { portal_tenderId: { portal: t.portal, tenderId: t.tenderId } },
-            select: { id: true },
-          });
+      const permanentlyExpired = await prisma.expiredTender.findUnique({
+        where: { portal_tenderId: { portal: t.portal, tenderId: t.tenderId } },
+        select: { id: true },
+      });
 
       // A tender whose own scraped closingDate is already in the past is
       // never stored as a brand-new row -- otherwise a portal that keeps

@@ -11,6 +11,7 @@ import {
   TenderRow,
   ApiError,
   PAGE_SIZE,
+  permanentlyDeleteTender,
 } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import AppShell, { View } from "./AppShell";
@@ -24,11 +25,13 @@ import AlertsPanel from "./AlertsPanel";
 import Pagination from "./Pagination";
 import { SkeletonTenderList } from "./Skeleton";
 import { KEYWORD_CHIPS } from "@/lib/keywordChips";
+import { useAuth } from "@/lib/authContext";
 
 const SEARCH_DEBOUNCE_MS = 350;
 
 export default function Dashboard() {
   const toast = useToast();
+  const { user } = useAuth();
   const [tab, setTab] = useState<View>("search");
 
   const [portals, setPortals] = useState<PortalSummary[]>([]);
@@ -50,6 +53,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [searchLoading, setSearchLoading] = useState(true);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [deletingTenderId, setDeletingTenderId] = useState<string | null>(null);
 
   const [runs, setRuns] = useState<any[]>([]);
   const [runsLoading, setRunsLoading] = useState(true);
@@ -209,6 +213,22 @@ export default function Dashboard() {
     }
   }
 
+  async function handleDeleteTender(tender: TenderRow) {
+    if (!window.confirm(`Permanently delete ${tender.tenderId}? It will be blocked from every future scrape.`)) return;
+    setDeletingTenderId(tender.id);
+    try {
+      await permanentlyDeleteTender(tender.id);
+      setResults((current) => current.filter((item) => item.id !== tender.id));
+      setTotal((current) => Math.max(0, current - 1));
+      toast.success(`${tender.tenderId} deleted and permanently blocked from re-scraping.`);
+      void loadStats({ silent: true });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not delete tender.");
+    } finally {
+      setDeletingTenderId(null);
+    }
+  }
+
   const enabledCount = portals.filter((p) => p.enabled).length;
   const gapToScrape = stats && stats.totalReported > stats.totalTenders ? stats.totalReported - stats.totalTenders : 0;
   const activeRuns = runs.filter((r) => r.status === "running").length;
@@ -341,7 +361,7 @@ export default function Dashboard() {
             {!searchLoading && !searchError && results.length === 0 && (
               <div className="empty-state">No tenders match your search yet.</div>
             )}
-            {!searchLoading && !searchError && results.map((t) => <TenderCard key={t.id} tender={t} />)}
+            {!searchLoading && !searchError && results.map((t) => <TenderCard key={t.id} tender={t} canDelete={user?.role === "admin"} deleting={deletingTenderId === t.id} onDelete={handleDeleteTender} />)}
             {!searchLoading && !searchError && (
               <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
             )}
