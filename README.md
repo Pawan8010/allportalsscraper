@@ -132,6 +132,172 @@ sequenceDiagram
     Mail-->>User: Tender alert to configured recipients
 ```
 
+### Detailed Scraping Pipeline
+
+```mermaid
+flowchart LR
+    START["Scheduler or Admin Trigger"] --> MODE{"Scrape Mode"}
+    MODE -->|"incremental"| RECENT["Fetch newest listing pages"]
+    MODE -->|"full"| ALL["Walk every available page and organisation"]
+    MODE -->|"assisted"| HUMAN["Open Playwright browser session"]
+    HUMAN --> VERIFY["User completes official CAPTCHA or OTP"]
+    VERIFY --> VISIBLE["Read verified visible result pages"]
+
+    RECENT --> REGISTRY["Portal Registry"]
+    ALL --> REGISTRY
+    VISIBLE --> NORMALISE
+    REGISTRY --> LOCK{"Portal already running?"}
+    LOCK -->|"yes"| SKIPRUN["Skip overlapping run"]
+    LOCK -->|"no"| ADAPTER["Select portal adapter"]
+    ADAPTER --> FETCH["Rate-limited requests with retries"]
+    FETCH --> PARSE["Parse JSON or HTML listing"]
+    PARSE --> NORMALISE["Convert to PortalTender contract"]
+    NORMALISE --> VALIDATE["Validate ID, title, URL and dates"]
+    VALIDATE --> CLASSIFY["Classify relevance"]
+    CLASSIFY --> HASH["Compute deterministic content hash"]
+    HASH --> TOMBSTONE{"Permanent tombstone exists?"}
+    TOMBSTONE -->|"yes"| SUPPRESS["Skip forever"]
+    TOMBSTONE -->|"no"| CLOSED{"Already closed?"}
+    CLOSED -->|"yes"| SUPPRESS
+    CLOSED -->|"no"| EXISTS{"Tender already stored?"}
+    EXISTS -->|"no"| INSERT["Insert new tender"]
+    EXISTS -->|"yes, changed"| UPDATE["Update tender"]
+    EXISTS -->|"yes, unchanged"| TOUCH["Update lastSeenAt only"]
+    INSERT --> RUN["Update ScrapeRun counters"]
+    UPDATE --> RUN
+    TOUCH --> RUN
+    SUPPRESS --> RUN
+    RUN --> ALERTMATCH["Match active alert keywords"]
+    ALERTMATCH --> DEDUPE{"Already emailed to this user?"}
+    DEDUPE -->|"yes"| DONE["Finish run"]
+    DEDUPE -->|"no"| EMAIL["Send one digest to 1-10 recipients"]
+    EMAIL --> LOG["Write AlertSentLog after success"]
+    LOG --> DONE
+```
+
+### Authentication and Authorization Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant API as Express API
+    participant Auth as Authentication Service
+    participant DB as PostgreSQL
+    participant Guard as Auth and Admin Middleware
+
+    Browser->>API: POST /api/auth/login with email and password
+    API->>Auth: Normalize email and verify bcrypt hash
+    Auth->>DB: Read User
+    DB-->>Auth: User and role
+    Auth->>DB: Store SHA-256 session-token hash, IP and user agent
+    Auth-->>Browser: HTTP-only sid cookie
+    Browser->>API: Protected API request with sid cookie
+    API->>Guard: Validate session
+    Guard->>DB: Read active, unexpired Session
+    DB-->>Guard: Session and User role
+    alt Valid user session
+        Guard-->>Browser: Continue to requested user route
+    else Admin-only route and role is not admin
+        Guard-->>Browser: 403 Admin access required
+    else Missing, expired or revoked session
+        Guard-->>Browser: 401 Not logged in
+    end
+```
+
+### Database Entity Relationships
+
+```mermaid
+erDiagram
+    USER ||--o{ SESSION : owns
+    USER ||--o| ALERT_SUBSCRIPTION : configures
+    USER ||--o{ ALERT_SENT_LOG : receives
+
+    USER {
+        string id PK
+        string email UK
+        string passwordHash
+        string role
+        datetime createdAt
+    }
+    SESSION {
+        string id PK
+        string tokenHash UK
+        string userId FK
+        string ipAddress
+        string userAgent
+        boolean active
+        datetime expiresAt
+    }
+    ALERT_SUBSCRIPTION {
+        string id PK
+        string userId FK, UK
+        string deliveryEmail
+        string_array keywords
+        boolean active
+    }
+    ALERT_SENT_LOG {
+        string id PK
+        string userId FK
+        string portal
+        string tenderId
+        datetime sentAt
+    }
+    TENDER {
+        string id PK
+        string portal UK
+        string tenderId UK
+        string title
+        string relevance
+        datetime closingDate
+        string contentHash
+        datetime lastSeenAt
+    }
+    EXPIRED_TENDER {
+        string id PK
+        string portal UK
+        string tenderId UK
+        datetime closedAt
+        datetime deletedAt
+    }
+    SCRAPE_RUN {
+        string id PK
+        string portal
+        string mode
+        string status
+        int tendersFound
+        int inserted
+        int updated
+        int skipped
+    }
+    SMTP_SETTINGS {
+        string id PK
+        boolean enabled
+        string host
+        int port
+        string username
+        string encryptedPassword
+        string fromEmail
+    }
+```
+
+`Tender` and `ExpiredTender` intentionally have no foreign-key relationship. They share the natural `(portal, tenderId)` identity so a tombstone can continue suppressing a tender after its active row has been permanently deleted. `AlertSentLog` also stores this natural identity instead of referencing `Tender.id`, allowing lifecycle cleanup without losing delivery history.
+
+### Deployment and Network Diagram
+
+```mermaid
+flowchart TB
+    INTERNET["User Browser"] -->|"HTTPS"| PROXY["Reverse Proxy or Load Balancer"]
+    PROXY -->|"Frontend requests"| NEXT["Next.js Production Server :3000"]
+    NEXT -->|"Authenticated REST calls"| EXPRESS["Express API :4000"]
+    PROXY -->|"Direct /api routing when configured"| EXPRESS
+    EXPRESS -->|"Prisma connection with TLS in production"| POSTGRES[("PostgreSQL :5432")]
+    EXPRESS -->|"HTTPS with conservative concurrency"| PORTALS["22 Government Procurement Portals"]
+    EXPRESS -->|"SMTP TLS :465 or STARTTLS :587"| MAIL["SMTP Provider"]
+    EXPRESS -->|"Daily export"| STORAGE["Protected Backup Storage"]
+    ADMINBROWSER["Admin Assisted Browser"] -->|"Official OTP/CAPTCHA completion"| IREPS["IREPS Public Search"]
+    IREPS -->|"Verified visible results"| EXPRESS
+```
+
 ### Repository Structure
 
 ```text
