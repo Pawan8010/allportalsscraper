@@ -1,0 +1,81 @@
+/*
+  Dark navy / cyan theme tokens.
+  This is a fresh project (this folder had no prior UI), so these values
+  are a faithful recreation of the "dark navy and cyan" look described in
+  the brief. If you have the original RRP Groups Tender Search stylesheet,
+  copy its exact hex values in here instead of these placeholders so the
+  two projects match pixel-for-pixel.
+*/
+:root {
+  --navy-950: #060b16;
+  --navy-900: #0b1e3b;
+  --navy-800: #10284d;
+  --navy-700: #16386a;
+  --cyan-400: #1fb6c9;
+  --cyan-300: #4fd0e0;
+  --cyan-200: #a7ecf3;
+  --text-primary: #eaf3fb;
+  --text-secondary: #9fb3c8;
+  --text-muted: #6b7f96;
+  --border: #1c2f4d;
+  --success: #2fbf71;
+  --warning: #e0a530;
+  --danger: #e5534b;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-sm: 7px;
+
+  /* Spacing scale -- consistent rhythm instead of ad-hoc pixel values. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Elevation -- one step up from the plain .card shadow for anything that
+     should read as "floating above" the page (toasts, popovers). */
+  --shadow-sm: 0 4px 14px -8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 14px 32px -24px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.65);
+
+  /* Motion -- shared durations so hover/enter/exit transitions feel like
+     one system instead of each component picking its own number. */
+  --motion-fast: 0.12s;
+  --motion-base: 0.18s;
+  --motion-slow: 0.3s;
+
+  /* Surfaces -- an explicit elevation ladder so nested panels (page ->
+     card -> inner row) read as distinct layers instead of every surface
+     picking its own one-off rgba(). */
+  --surface-base: var(--navy-950);
+  --surface-raised: #0a1526;
+  --surface-card: #0c1a30;
+  --surface-inset: #081222;
+  --surface-hover: rgba(31, 182, 201, 0.06);
+  --border-strong: #24406a;
+
+  /* Semantic status colours -- paired fg/bg so badges, coverage bars and
+     row highlights all tint the same way per state. */
+  --status-ok: var(--success);
+  --status-ok-bg: rgba(47, 191, 113, 0.12);
+  --status-warn: var(--warning);
+  --status-warn-bg: rgba(224, 165, 48, 0.12);
+  --status-bad: var(--danger);
+  --status-bad-bg: rgba(229, 83, 75, 0.12);
+  --status-idle: var(--text-muted);
+  --status-idle-bg: rgba(107, 127, 150, 0.1);
+
+  /* Type scale. */
+  --text-xs: 11px;
+  --text-sm: 12.5px;
+  --text-base: 14px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-2xl: 30px;
+
+  /* Layout. */
+  --sidebar-width: 232px;
+  --topbar-height: 60px;
+}

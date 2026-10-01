@@ -1,0 +1,791 @@
+[
+  {
+    "id": "9389707",
+    "b_id": [
+      9389707
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7594220"
+    ],
+    "b_category_name": [
+      "Custom Bid for Services - 4804 OFFLOADING OF ANNUAL CLASS SURVEY OF FDN-2"
+    ],
+    "b_total_quantity": [
+      1
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      1
+    ],
+    "b_type": [
+      1
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-05-27T18:47:41Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Custom Bid for Services - 4804 OFFLOADING OF ANNUAL CLASS SURVEY OF FDN-2"
+    ],
+    "b_is_custom_item": [
+      0
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "services_home_cust"
+    ],
+    "b.b_created_by": [
+      "jerritabraham"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Defence"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Military Affairs"
+    ]
+  },
+  {
+    "id": "9537308",
+    "b_id": [
+      9537308
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7725625"
+    ],
+    "b_category_name": [
+      "Triply SS Pot patila or tope with lid, Capacity 10 litre Measurements,Triply stainless steel Pot pa"
+    ],
+    "b_total_quantity": [
+      20
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      10
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-03T17:38:21Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Triply SS Pot patila or tope with lid, Capacity 10 litre Measurements,Triply stainless steel Pot patila or tope with lid Capacity 15 litre,Measurements Volume 15.0 l 16 qt as per attached specification,Indian Style Triply Stainless Steel Round Vessel patila or tope with Handles and lid, Capacity 80 Liters as per attached specification,Triply Stainless Steel Sauce Pot patila or tope , Steel Handles With SS 304 Lid Capacity 70 Liters as per attached specification,Triply Stainless Steel Sauce Pot patila or tope , Steel Handles With SS 304 Lid Capacity 60 Liters as per attached specification,Triply Stainless Steel Sauce Pot or Patila, Steel Handles with SS 304 Lid Capacity 50 Liters as per attached specification,Triply Stainless Steel Sauce Pot or Patila, Steel Handles With SS 304 Lid Capacity 40 litres as per attached specification,Triply Stainless Steel Sauce Pot or Patila, Steel Handles with SS 304 lid Capacity 35 Liters as per attached specification,Triply Stainless Steel Sauce Pot or Patila, Steel Handles wi"
+    ],
+    "b_is_custom_item": [
+      0
+    ],
+    "bbt_title": [
+      "KITCHEN COOKING UTENSILS"
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_boq_boql_boql_boq"
+    ],
+    "b.b_created_by": [
+      "poa2dps"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "PMO"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Atomic Energy"
+    ],
+    "bd_details_is_boq": [
+      true
+    ],
+    "bd_details_new_boq": [
+      true
+    ]
+  },
+  {
+    "id": "9536625",
+    "b_id": [
+      9536625
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7724998"
+    ],
+    "b_category_name": [
+      "12 Channel Multi-Detector Benchtop Counter"
+    ],
+    "b_total_quantity": [
+      1
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      1
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-03T17:36:34Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "12 Channel Multi-Detector Benchtop Counter"
+    ],
+    "b_is_custom_item": [
+      1
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_univ_univ_univ_univ"
+    ],
+    "b.b_created_by": [
+      "poa2dps"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "PMO"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Atomic Energy"
+    ]
+  },
+  {
+    "id": "9529370",
+    "b_id": [
+      9529370
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7718886"
+    ],
+    "b_category_name": [
+      "Nitrous Gas,Cylinder Oxygen (O2) gas for,Cylinder CO2 gas for"
+    ],
+    "b_total_quantity": [
+      1723488
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      3
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      1
+    ],
+    "final_start_date_sort": [
+      "2026-07-06T20:23:45Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Nitrous Gas,Nitrous Gas,Nitrous Gas,Cylinder Oxygen (O2) gas for,Cylinder Oxygen (O2) gas for,Cylinder Oxygen (O2) gas for,Cylinder CO2 gas for,Cylinder CO2 gas for,Cylinder CO2 gas for"
+    ],
+    "b_is_custom_item": [
+      1
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_univ_univ_univ_univ"
+    ],
+    "b.b_created_by": [
+      "ankur92"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Defence"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Military Affairs"
+    ]
+  },
+  {
+    "id": "9524570",
+    "b_id": [
+      9524570
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7714654"
+    ],
+    "b_category_name": [
+      "REMOTE CONTROL ASSEMBLY"
+    ],
+    "b_total_quantity": [
+      1
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      1
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-06T10:13:18Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "REMOTE CONTROL ASSEMBLY"
+    ],
+    "b_is_custom_item": [
+      1
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_univ_univ_univ_univ"
+    ],
+    "b.b_created_by": [
+      "LGSOFFR32WG"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Defence"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Military Affairs"
+    ]
+  },
+  {
+    "id": "9507580",
+    "b_id": [
+      9507580
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7699360"
+    ],
+    "b_category_name": [
+      "Custom Bid for Services - SERVICING AND REPAIR OF AC - 10 NOS ( AS PER SCOPE OF WORK )"
+    ],
+    "b_total_quantity": [
+      1
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      1
+    ],
+    "b_type": [
+      1
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-06T09:06:22Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Custom Bid for Services - SERVICING AND REPAIR OF AC - 10 NOS ( AS PER SCOPE OF WORK )"
+    ],
+    "b_is_custom_item": [
+      0
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "services_home_cust"
+    ],
+    "b.b_created_by": [
+      "alogodrona"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Defence"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Military Affairs"
+    ]
+  },
+  {
+    "id": "9494204",
+    "b_id": [
+      9494204
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7687635"
+    ],
+    "b_category_name": [
+      "Item 1 - Free Chlorine Portable photometer with cal check as technical specification annexure attac"
+    ],
+    "b_total_quantity": [
+      11
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      2
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      1
+    ],
+    "final_start_date_sort": [
+      "2026-07-03T16:22:15Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Item 1 - Free Chlorine Portable photometer with cal check as technical specification annexure attach,Item 1 - Free Chlorine Portable photometer with cal check as technical specification annexure attach,Item 2 -Free Residual Chlorine Reagent as technical specification annexure attached,Item 2 -Free Residual Chlorine Reagent as technical specification annexure attached"
+    ],
+    "b_is_custom_item": [
+      1
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_univ_univ_univ_univ"
+    ],
+    "b.b_created_by": [
+      "apotwomrpu"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "PMO"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Atomic Energy"
+    ]
+  },
+  {
+    "id": "9468238",
+    "b_id": [
+      9468238
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7664324"
+    ],
+    "b_category_name": [
+      "Multimedia Projector (MMP)"
+    ],
+    "b_total_quantity": [
+      30
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      1
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-06T10:13:28Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Multimedia Projector (MMP)"
+    ],
+    "b_is_custom_item": [
+      0
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_prin_audi_proj_2805"
+    ],
+    "b.b_created_by": [
+      "SCITO_413AFS"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Defence"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Military Affairs"
+    ]
+  },
+  {
+    "id": "9557786",
+    "b_id": [
+      9557786
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7743886"
+    ],
+    "b_category_name": [
+      "Catalogue No. : 74500513100 RELAY Coil Voltage: 24V DC,Catalogue No. : 78137227400 RELAY Coil Volta"
+    ],
+    "b_total_quantity": [
+      135
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      3
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-06T18:35:13Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Catalogue No. : 74500513100 RELAY Coil Voltage: 24V DC,Catalogue No. : 78137227400 RELAY Coil Voltage: 240V DC,Catalogue No. : 78137227500 RELAY Coil Voltage: 220V DC"
+    ],
+    "b_is_custom_item": [
+      1
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_univ_univ_univ_univ"
+    ],
+    "b.b_created_by": [
+      "amit.kumar2@bokaropower.in"
+    ],
+    "ba_is_single_packet": [
+      1
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Power"
+    ],
+    "ba_official_details_deptName": [
+      "THERMAL POWER"
+    ]
+  },
+  {
+    "id": "9565633",
+    "b_id": [
+      9565633
+    ],
+    "b_bid_number": [
+      "GEM/2026/B/7750528"
+    ],
+    "b_category_name": [
+      "Generator Spares"
+    ],
+    "b_total_quantity": [
+      1
+    ],
+    "b_status": [
+      1
+    ],
+    "b_bid_type": [
+      1
+    ],
+    "b_is_bunch": [
+      1
+    ],
+    "b_type": [
+      0
+    ],
+    "b_bid_to_ra": [
+      0
+    ],
+    "b_buyer_status": [
+      0
+    ],
+    "b_eval_type": [
+      0
+    ],
+    "final_start_date_sort": [
+      "2026-07-07T17:42:39Z"
+    ],
+    "final_end_date_sort": [
+      "2026-07-27T09:00:00Z"
+    ],
+    "bd_category_name": [
+      "Generator Spares"
+    ],
+    "b_is_custom_item": [
+      1
+    ],
+    "is_high_value": [
+      false
+    ],
+    "b_ra_to_bid": [
+      1
+    ],
+    "b_is_inactive": [
+      0
+    ],
+    "b_cat_id": [
+      "home_univ_univ_univ_univ"
+    ],
+    "b.b_created_by": [
+      "439_EPO_LEH"
+    ],
+    "ba_is_single_packet": [
+      0
+    ],
+    "ba_is_global_tendering": [
+      0
+    ],
+    "is_rc_bid": [
+      0
+    ],
+    "ba_official_details_minName": [
+      "Ministry of Defence"
+    ],
+    "ba_official_details_deptName": [
+      "Department of Military Affairs"
+    ]
+  }
+]
