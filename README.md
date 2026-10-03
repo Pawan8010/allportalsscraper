@@ -379,21 +379,27 @@ See `docs/PORTAL_FEASIBILITY.md` for portal-specific interfaces and limitations.
 
 - Docker Desktop with Docker Compose
 
-## Quick Start with Docker
+## Quick Start with Docker (From Scratch)
 
-```bash
-git clone https://github.com/Pawan8010/allportalsscraper.git
-cd allportalsscraper
-docker compose up --build
-```
+Follow these steps to run the project fully working on any system using Docker:
 
-Open:
+1. **Install Docker Desktop**: If you don't have it, download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+2. **Start Docker**: Open the Docker Desktop application from your Start Menu/Applications and wait for the engine to start (the Docker icon in your system tray should indicate it's running).
+3. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Pawan8010/allportalsscraper.git
+   cd allportalsscraper
+   ```
+4. **Run the application**:
+   ```bash
+   docker compose up --build
+   ```
+5. **Access the application**:
+   - Frontend Dashboard: <http://localhost:3000>
+   - Backend API Health: <http://localhost:4000/health>
+   - PostgreSQL Database: `localhost:5432`
 
-- Frontend: <http://localhost:3000>
-- Backend health: <http://localhost:4000/health>
-- PostgreSQL: `localhost:5432`
-
-For real deployments, change the sample database password in `docker-compose.yml` and move secrets into environment variables or a secret manager.
+*Note: For production deployments, change the sample database password in `docker-compose.yml` and move secrets into environment variables or a secret manager.*
 
 ## Native Installation
 
