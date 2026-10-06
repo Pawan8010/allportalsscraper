@@ -1,8 +1,11 @@
 FROM node:20-bullseye AS build
 WORKDIR /app
-COPY package.json ./
-RUN npm install
-COPY . .
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY next.config.js tsconfig.json next-env.d.ts ./
+COPY src ./src
 RUN mkdir -p public && npm run build
 
 FROM node:20-bullseye

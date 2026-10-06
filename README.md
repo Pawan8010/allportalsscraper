@@ -401,6 +401,8 @@ Follow these steps to run the project fully working on any system using Docker:
 
 *Note: For production deployments, change the sample database password in `docker-compose.yml` and move secrets into environment variables or a secret manager.*
 
+The backend image uses Playwright's official version-matched Docker image. Docker therefore downloads Chromium and its Linux dependencies as part of the base image, instead of running `npx playwright install --with-deps` during the application build. This avoids the common build failure caused by unavailable system packages or a failed browser download.
+
 ## Native Installation
 
 ### 1. Clone and create PostgreSQL database
