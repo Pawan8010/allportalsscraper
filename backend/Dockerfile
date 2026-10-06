@@ -12,5 +12,6 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
+RUN npx playwright install chromium --with-deps
 EXPOSE 4000
 CMD ["node", "dist/index.js"]
