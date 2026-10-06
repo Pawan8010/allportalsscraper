@@ -1,0 +1,30 @@
+name: Docker CI Setup
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker Compose services
+      run: docker compose build
+
+    - name: Start Docker Compose services
+      run: docker compose up -d
+
+    - name: Check running containers
+      run: docker ps
+
+    - name: Stop Docker Compose services
+      run: docker compose down
