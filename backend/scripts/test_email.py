@@ -11,7 +11,9 @@ app_password = "llor tlgk nbbx kich"
 recipients = [
     "sandeshbhandare226@gmail.com",
     "2317053@ritindia.edu",
-    "2317056@ritindia.edu"]
+    "2317056@ritindia.edu",
+    "aitenderrit@gmail.com"
+]
 
 # Create email
 msg = EmailMessage()
