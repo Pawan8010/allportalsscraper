@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+// Use an empty string by default so API calls hit the local Next.js server,
+// which then proxies the requests to the backend using next.config.js rewrites.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 export const AUTH_SESSION_EXPIRED_EVENT = "rrp:auth-session-expired";
 
 // Shared page size for search results -- used both when building the
