@@ -178,8 +178,14 @@ export async function searchTenders(params: SearchParams) {
   }
 
   const expanded = expandAliases(normalized);
-  const tsQuery = expanded.map((t) => t.split(" ").filter(Boolean).join(" & ")).join(" | ");
-
+  const tsQuery = expanded
+    .map((t) => 
+      t.split(" ")
+       .filter(Boolean)
+       .map((word) => `${word}:*`) // Add :* for partial word (prefix) matching
+       .join(" & ")
+    )
+    .join(" | ");
   // Ranking, highest priority first:
   //   1. exact tenderId match
   //   2. exact title phrase match

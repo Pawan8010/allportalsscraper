@@ -50,10 +50,21 @@ export async function runAlertCycle(): Promise<{ usersNotified: number; tendersS
 
   for (const sub of subscriptions) {
     try {
-      const matched = new Map<string, SearchResultRow>();
-      for (const keyword of sub.keywords) {
-        const { rows } = await searchTenders({ q: keyword, limit: MAX_MATCHES_PER_KEYWORD });
-        for (const row of rows) matched.set(`${row.portal}:${row.tenderId}`, row);
+      const matched = new Map<string, any>();
+      
+      const matchedTenders = await prisma.tender.findMany({
+        where: {
+          AND: [
+            { OR: sub.keywords.map((k) => ({ title: { contains: k, mode: "insensitive" as const } })) },
+            { OR: [{ closingDate: null }, { closingDate: { gte: new Date() } }] }
+          ]
+        },
+        orderBy: { publishedDate: "desc" },
+        take: MAX_MATCHES_PER_KEYWORD * sub.keywords.length
+      });
+
+      for (const row of matchedTenders) {
+        matched.set(`${row.portal}:${row.tenderId}`, row);
       }
       if (matched.size === 0) continue;
 
