@@ -390,16 +390,25 @@ Follow these steps to run the project fully working on any system using Docker:
    git clone https://github.com/Pawan8010/allportalsscraper.git
    cd allportalsscraper
    ```
-4. **Run the application**:
+4. **Create your local configuration**:
+   ```bash
+   cp .env.example .env
+   ```
+   On Windows PowerShell use `Copy-Item .env.example .env`. Change
+   `POSTGRES_PASSWORD` and set `ADMIN_EMAILS` to the email address you will
+   register with. Keep `SESSION_COOKIE_SECURE=false` for local HTTP.
+5. **Run the application**:
    ```bash
    docker compose up --build
    ```
-5. **Access the application**:
+6. **Access the application**:
    - Frontend Dashboard: <http://localhost:3000>
    - Backend API Health: <http://localhost:4000/health>
    - PostgreSQL Database: `localhost:5432`
 
-*Note: For production deployments, change the sample database password in `docker-compose.yml` and move secrets into environment variables or a secret manager.*
+*Note: For HTTPS deployments set `SESSION_COOKIE_SECURE=true`, set exact public
+URLs for `NEXT_PUBLIC_API_BASE_URL` and `CORS_ALLOWED_ORIGINS`, and keep secrets
+in environment variables or a secret manager.*
 
 The backend image uses Playwright's official version-matched Docker image. Docker therefore downloads Chromium and its Linux dependencies as part of the base image, instead of running `npx playwright install --with-deps` during the application build. This avoids the common build failure caused by unavailable system packages or a failed browser download.
 

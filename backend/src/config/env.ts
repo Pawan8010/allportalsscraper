@@ -71,6 +71,7 @@ export const env = {
 
   // --- Authentication ---
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? "sid",
+  sessionCookieSecure: bool("SESSION_COOKIE_SECURE", (process.env.NODE_ENV ?? "development") === "production"),
   sessionTtlHours: num("SESSION_TTL_HOURS", 720),
   // Comma-separated allowlist of the only accounts permitted to be admins.
   // When unset, every newly registered account is a regular user.

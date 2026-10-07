@@ -20,7 +20,7 @@ function sessionContext(req: import("express").Request) {
 function setSessionCookie(res: import("express").Response, rawToken: string, expiresAt: Date) {
   res.cookie(env.sessionCookieName, rawToken, {
     httpOnly: true,
-    secure: env.nodeEnv === "production",
+    secure: env.sessionCookieSecure,
     sameSite: "lax",
     expires: expiresAt,
     // Without an explicit path, a cookie set from a POST to /api/auth/login

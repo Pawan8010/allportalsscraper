@@ -20,7 +20,6 @@ function hashToken(rawToken: string): string {
 
 function roleForNewSignup(email: string): string {
   const normalizedEmail = email.toLowerCase();
-  if (normalizedEmail.endsWith("@ritindia.edu")) return "admin";
   return env.adminEmails.includes(normalizedEmail) ? "admin" : "user";
 }
 

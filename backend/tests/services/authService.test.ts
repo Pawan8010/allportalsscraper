@@ -101,6 +101,11 @@ describe("authService", () => {
       expect(user.role).toBe("user");
     });
 
+    it("does not grant admin access based on an email domain", async () => {
+      const { user } = await registerUser("staff@ritindia.edu", "password123", {});
+      expect(user.role).toBe("user");
+    });
+
     it("does not make the second user admin", async () => {
       await registerUser("first@example.com", "password123", {});
       const { user: second } = await registerUser("second@example.com", "password123", {});
