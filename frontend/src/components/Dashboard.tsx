@@ -166,14 +166,14 @@ export default function Dashboard() {
     runSearch();
   }, [runSearch]);
 
-  // Live background refresh: portal status and scrape activity update on
-  // their own every few seconds, same as the reference dashboard's polling
-  // model, so a scrape someone else (or the scheduler) kicks off shows up
-  // here without a manual reload.
+  // Keep scrape activity responsive without repeatedly reloading every
+  // dashboard dataset while a tab is hidden or the user is reading results.
   const pollingRef = useRef(refreshAll);
   pollingRef.current = refreshAll;
   useEffect(() => {
-    const interval = setInterval(() => pollingRef.current({ silent: true }), 6000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") pollingRef.current({ silent: true });
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 

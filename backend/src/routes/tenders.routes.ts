@@ -4,6 +4,7 @@ import { PORTAL_REGISTRY } from "../portals/portalRegistry";
 import { prisma } from "../services/prisma";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { ApiError } from "../middleware/errorHandler";
+import { Prisma } from "@prisma/client";
 
 export const tendersRouter = Router();
 
@@ -99,46 +100,35 @@ tendersRouter.get("/tenders/search", async (req, res, next) => {
 
 tendersRouter.get("/tenders/stats", async (_req, res, next) => {
   try {
-    const totalTenders = await prisma.tender.count();
-    const portalCounts = await getPortalCounts();
-
-    // The portal's own reported total, per portal, from the most recent run
-    // that actually captured one (most GePNIC listings never expose an
-    // overall count, so those portals are simply absent from this sum, not
-    // counted as zero).
-    const reportedTotals = await Promise.all(
-      PORTAL_REGISTRY.map(async (p) => {
-        const lastRunWithTotal = await prisma.scrapeRun.findFirst({
-          where: { portal: p.key, statedTotal: { not: null } },
-          orderBy: { startedAt: "desc" },
-        });
-        return { portal: p.key, statedTotal: lastRunWithTotal?.statedTotal ?? null };
-      })
-    );
-    const totalReported = reportedTotals.reduce((sum, p) => sum + (p.statedTotal ?? 0), 0);
-    const portalsReportingCount = reportedTotals.filter((p) => p.statedTotal != null).length;
-    const gemListedTotal = reportedTotals.find((p) => p.portal === "gem")?.statedTotal ?? 0;
-
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const closingSoon = await prisma.tender.count({
-      where: { closingDate: { gte: now, lte: sevenDaysOut } },
-    });
-    const newToday = await prisma.tender.count({ where: { createdAt: { gte: startOfToday } } });
-    const keywordMatches = await prisma.tender.count({
-      where: {
-        AND: [
-          { OR: STATS_KEYWORDS.map((k) => ({ title: { contains: k, mode: "insensitive" as const } })) },
-          { OR: [{ closingDate: null }, { closingDate: { gte: now } }] },
-        ],
-      },
-    });
-
-    const lastRunOverall = await prisma.scrapeRun.findFirst({
-      where: { status: { in: ["success", "partial"] } },
-      orderBy: { finishedAt: "desc" },
-    });
+    const [totalTenders, portalCounts, reportedRows, closingSoon, newToday, keywordMatches, lastRunOverall] = await Promise.all([
+      prisma.tender.count(),
+      getPortalCounts(),
+      prisma.$queryRaw<{ portal: string; statedTotal: number }[]>(Prisma.sql`
+        SELECT DISTINCT ON (portal) portal, "statedTotal"
+        FROM "ScrapeRun"
+        WHERE "statedTotal" IS NOT NULL
+        ORDER BY portal, "startedAt" DESC
+      `),
+      prisma.tender.count({ where: { closingDate: { gte: now, lte: sevenDaysOut } } }),
+      prisma.tender.count({ where: { createdAt: { gte: startOfToday } } }),
+      prisma.tender.count({
+        where: {
+          AND: [
+            { OR: STATS_KEYWORDS.map((keyword) => ({ title: { contains: keyword, mode: "insensitive" as const } })) },
+            { OR: [{ closingDate: null }, { closingDate: { gte: now } }] },
+          ],
+        },
+      }),
+      prisma.scrapeRun.findFirst({ where: { status: { in: ["success", "partial"] } }, orderBy: { finishedAt: "desc" } }),
+    ]);
+    const reportedByPortal = new Map(reportedRows.map((row) => [row.portal, row.statedTotal]));
+    const reportedTotals = PORTAL_REGISTRY.map((portal) => ({ portal: portal.key, statedTotal: reportedByPortal.get(portal.key) ?? null }));
+    const totalReported = reportedTotals.reduce((sum, portal) => sum + (portal.statedTotal ?? 0), 0);
+    const portalsReportingCount = reportedTotals.filter((portal) => portal.statedTotal != null).length;
+    const gemListedTotal = reportedByPortal.get("gem") ?? 0;
 
     res.json({
       totalTenders,
