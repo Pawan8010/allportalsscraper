@@ -33,6 +33,10 @@ export const env = {
   portalRequestDelayMs: num("PORTAL_REQUEST_DELAY_MS", 500),
   portalMaxRetries: num("PORTAL_MAX_RETRIES", 3),
   portalTimeoutMs: num("PORTAL_TIMEOUT_MS", 45000),
+  // Database work happens after a portal response is received, so it can be
+  // parallelised safely without increasing traffic to public portals.
+  databaseWriteConcurrency: num("DATABASE_WRITE_CONCURRENCY", 8),
+  statsCacheMs: num("STATS_CACHE_MS", 15000),
   // Concurrent organisation-page fetches within a single GePNIC portal's
   // by-organisation crawl (separate dial from portalConcurrency, which is
   // how many *portals* run at once).

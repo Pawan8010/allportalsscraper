@@ -87,12 +87,10 @@ export async function upsertTenders(
   portalName: string,
   runId: string
 ): Promise<{ inserted: number; updated: number; skipped: number; failed: number }> {
-  let inserted = 0;
-  let updated = 0;
-  let skipped = 0;
-  let failed = 0;
-
-  for (const t of tenders) {
+  const limit = pLimit(Math.max(1, env.databaseWriteConcurrency));
+  const results = await Promise.all(
+    tenders.map((t) =>
+      limit(async () => {
     try {
       const fields = tenderToFields(t, portalName);
       const contentHash = computeContentHash(fields as Record<string, unknown>);
@@ -112,8 +110,7 @@ export async function upsertTenders(
       // Rows already in the DB keep updating normally; the cleanup job
       // (tenderCleanupService.ts) removes those on its own schedule.
       if (permanentlyExpired || (!existing && fields.closingDate && fields.closingDate < new Date())) {
-        skipped++;
-        continue;
+        return { inserted: 0, updated: 0, skipped: 1, failed: 0 };
       }
 
       if (existing && existing.contentHash === contentHash) {
@@ -122,8 +119,7 @@ export async function upsertTenders(
           where: { id: existing.id },
           data: { lastSeenAt: new Date(), lastSeenRunId: runId },
         });
-        skipped++;
-        continue;
+        return { inserted: 0, updated: 0, skipped: 1, failed: 0 };
       }
 
       await prisma.tender.upsert({
@@ -132,15 +128,24 @@ export async function upsertTenders(
         update: { ...fields, contentHash, lastSeenAt: new Date(), lastSeenRunId: runId },
       });
 
-      if (existing) updated++;
-      else inserted++;
+      return { inserted: existing ? 0 : 1, updated: existing ? 1 : 0, skipped: 0, failed: 0 };
     } catch (err) {
-      failed++;
       logger.error({ err: String(err), tenderId: t.tenderId, portal: t.portal }, "upsert failed for tender");
+      return { inserted: 0, updated: 0, skipped: 0, failed: 1 };
     }
-  }
+      })
+    )
+  );
 
-  return { inserted, updated, skipped, failed };
+  return results.reduce(
+    (totals, result) => ({
+      inserted: totals.inserted + result.inserted,
+      updated: totals.updated + result.updated,
+      skipped: totals.skipped + result.skipped,
+      failed: totals.failed + result.failed,
+    }),
+    { inserted: 0, updated: 0, skipped: 0, failed: 0 }
+  );
 }
 
 export async function scrapePortal(portalKey: string, mode: Mode, maxPages?: number): Promise<ScrapePortalResult> {

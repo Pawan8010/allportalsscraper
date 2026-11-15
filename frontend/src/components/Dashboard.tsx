@@ -171,11 +171,18 @@ export default function Dashboard() {
   const pollingRef = useRef(refreshAll);
   pollingRef.current = refreshAll;
   useEffect(() => {
+    let ticks = 0;
     const interval = setInterval(() => {
-      if (document.visibilityState === "visible") pollingRef.current({ silent: true });
+      if (document.visibilityState !== "visible") return;
+      // Runs and portal status need frequent updates during a scrape; the
+      // aggregate stats query is heavier and changes much less often.
+      loadPortals({ silent: true });
+      loadRuns({ silent: true });
+      ticks += 1;
+      if (ticks % 4 === 0) loadStats({ silent: true });
     }, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadPortals, loadRuns, loadStats]);
 
   function toggleKeyword(k: string) {
     setPage(1);

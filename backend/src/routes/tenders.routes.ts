@@ -5,8 +5,11 @@ import { prisma } from "../services/prisma";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { ApiError } from "../middleware/errorHandler";
 import { Prisma } from "@prisma/client";
+import { env } from "../config/env";
 
 export const tendersRouter = Router();
+
+let statsCache: { expiresAt: number; payload: Record<string, unknown> } | null = null;
 
 tendersRouter.delete("/tenders/:id", requireAdmin, async (req, res, next) => {
   try {
@@ -101,6 +104,10 @@ tendersRouter.get("/tenders/search", async (req, res, next) => {
 tendersRouter.get("/tenders/stats", async (_req, res, next) => {
   try {
     const now = new Date();
+    if (statsCache && statsCache.expiresAt > now.getTime()) {
+      res.set("Cache-Control", "private, max-age=15");
+      return res.json(statsCache.payload);
+    }
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sevenDaysOut = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const [totalTenders, portalCounts, reportedRows, closingSoon, newToday, keywordMatches, lastRunOverall] = await Promise.all([
@@ -130,7 +137,7 @@ tendersRouter.get("/tenders/stats", async (_req, res, next) => {
     const portalsReportingCount = reportedTotals.filter((portal) => portal.statedTotal != null).length;
     const gemListedTotal = reportedByPortal.get("gem") ?? 0;
 
-    res.json({
+    const payload = {
       totalTenders,
       totalReported,
       gemListedTotal,
@@ -144,7 +151,10 @@ tendersRouter.get("/tenders/stats", async (_req, res, next) => {
       closingSoon,
       lastScrapeAt: lastRunOverall?.finishedAt ?? null,
       generatedAt: new Date().toISOString(),
-    });
+    };
+    statsCache = { expiresAt: now.getTime() + Math.max(1_000, env.statsCacheMs), payload };
+    res.set("Cache-Control", "private, max-age=15");
+    res.json(payload);
   } catch (err) {
     next(err);
   }
