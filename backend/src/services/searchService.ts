@@ -34,6 +34,37 @@ export interface SearchResultRow {
 }
 
 /**
+ * Alert subscriptions deliberately use broader matching than interactive
+ * search: each keyword token may occur anywhere in the tender's searchable
+ * text. This catches saved fragments such as "therm" for "thermal" and
+ * phrase words in a different order, while keeping ordinary search ranking
+ * fast and precise.
+ */
+export async function findAlertMatches(keyword: string, limit = 50): Promise<{ rows: SearchResultRow[]; total: number }> {
+  const tokens = normalizeQuery(keyword).split(" ").filter((token) => token.length >= 2);
+  if (tokens.length === 0) return { rows: [], total: 0 };
+
+  const searchable = Prisma.sql`concat_ws(' ', "tenderId", title, organisation, department, category, description)`;
+  const tokenConditions = tokens.map((token) => Prisma.sql`${searchable} ILIKE ${"%" + token + "%"}`);
+  const rows = await prisma.$queryRaw<(SearchResultRow & { total_count: bigint })[]>(Prisma.sql`
+    SELECT id, portal, "portalName", "tenderId", title, organisation, department, state, category, status, relevance, "publishedDate", "closingDate", "tenderURL",
+      (
+        CASE WHEN lower(title) LIKE ${"%" + normalizeQuery(keyword) + "%"} THEN 500 ELSE 0 END +
+        CASE WHEN lower("tenderId") LIKE ${"%" + normalizeQuery(keyword) + "%"} THEN 300 ELSE 0 END +
+        COALESCE(ts_rank(search_vector, plainto_tsquery('english', ${normalizeQuery(keyword)})), 0) * 100
+      ) AS rank,
+      COUNT(*) OVER() AS total_count
+    FROM "Tender"
+    WHERE ("closingDate" IS NULL OR "closingDate" >= NOW())
+      AND ${Prisma.join(tokenConditions, " AND ")}
+    ORDER BY rank DESC, "publishedDate" DESC NULLS LAST
+    LIMIT ${Math.min(100, Math.max(1, limit))}
+  `);
+  const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+  return { rows: rows.map(({ total_count: _totalCount, ...row }) => row), total };
+}
+
+/**
  * Normalises a raw query string: Unicode NFKC, lowercase, whitespace
  * collapse, and light punctuation stripping (keeps alphanumerics and a few
  * separators that are meaningful inside reference numbers, e.g. "/", "-").

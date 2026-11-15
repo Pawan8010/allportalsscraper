@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { searchTenders, SearchResultRow } from "./searchService";
+import { findAlertMatches, SearchResultRow } from "./searchService";
 import { sendAlertEmail } from "./mailer";
 import { logger } from "../utils/logger";
 
@@ -52,7 +52,7 @@ export async function runAlertCycle(): Promise<{ usersNotified: number; tendersS
     try {
       const matched = new Map<string, SearchResultRow>();
       for (const keyword of sub.keywords) {
-        const { rows } = await searchTenders({ q: keyword, limit: MAX_MATCHES_PER_KEYWORD });
+        const { rows } = await findAlertMatches(keyword, MAX_MATCHES_PER_KEYWORD);
         for (const row of rows) matched.set(`${row.portal}:${row.tenderId}`, row);
       }
       if (matched.size === 0) continue;

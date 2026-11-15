@@ -14,7 +14,7 @@ const subscriptionSchema = z.object({
     }
     return addresses.join(", ");
   }),
-  keywords: z.array(z.string().trim().min(1)).max(50),
+  keywords: z.array(z.string().trim().min(2, "Keywords must contain at least 2 characters.")).max(50),
   active: z.boolean().default(true),
 });
 

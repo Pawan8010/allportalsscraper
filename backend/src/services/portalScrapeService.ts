@@ -6,6 +6,7 @@ import { computeContentHash } from "../utils/hash";
 import { classifyRelevance } from "../utils/relevance";
 import { logger } from "../utils/logger";
 import { env } from "../config/env";
+import { runAlertCycle } from "./alertService";
 
 type Mode = "full" | "incremental";
 
@@ -311,7 +312,9 @@ export function startScrapeAllInBackground(mode: Mode): StartBatchResult {
     .then((results) => {
       const failed = results.filter((r) => r.status === "failed").length;
       logger.info({ mode, total: results.length, failed }, "background scrape batch finished");
+      return runAlertCycle();
     })
+    .then((alerts) => logger.info({ mode, ...alerts }, "background alert cycle finished"))
     .catch((err) => logger.error({ err: String(err), mode }, "background scrape batch threw"))
     .finally(() => {
       batchRunning = false;

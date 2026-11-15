@@ -75,8 +75,9 @@ export default function AlertsPanel() {
           Keyword alerts
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 0 }}>
-          Pick the keywords you want to be emailed about. New matching tenders are checked after every scrape cycle
-          and sent as one digest — the same tender is never emailed twice. Add up to 10 recipients separated by commas.
+          Pick the keywords you want to be emailed about. Partial words match too: for example, <strong>therm</strong>
+          matches <strong>thermal</strong>. New matching tenders are checked after every scrape cycle and sent as one digest
+          — the same tender is never emailed twice. Add up to 10 recipients separated by commas.
         </p>
 
         <div className="alert-settings-grid">
@@ -86,7 +87,7 @@ export default function AlertsPanel() {
               <Mail size={15} />
               <input className="input" type="text" value={deliveryEmail} onChange={(event) => setDeliveryEmail(event.target.value)} placeholder="alerts@example.com, team@example.com" required />
             </div>
-            <small>Separate addresses with commas. Recipients receive the same matched-tender digest.</small>
+            <small>Separate addresses with commas. Recipients receive the same matched-tender digest. An admin must configure SMTP in Admin → Email delivery before messages can be sent.</small>
           </label>
           <label className="alert-toggle">
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

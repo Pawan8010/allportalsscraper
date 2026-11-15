@@ -20,7 +20,7 @@ services:
     volumes:
       - tender_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tender_app"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tender_app} -d ${POSTGRES_DB:-tender_platform}"]
       interval: 5s
       timeout: 5s
       retries: 10

@@ -1,4 +1,4 @@
-FROM node:20-bullseye AS build
+FROM mcr.microsoft.com/playwright:v1.62.0-jammy AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci

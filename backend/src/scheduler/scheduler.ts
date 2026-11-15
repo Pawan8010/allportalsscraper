@@ -51,6 +51,7 @@ async function runFullCycle(): Promise<void> {
     const results = await scrapeAllEnabledPortals();
     const failed = results.filter((r) => r.status === "failed");
     logger.info({ total: results.length, failed: failed.length }, "Scheduled full scrape cycle finished");
+    await runAlertCycle().catch((err) => logger.error({ err: String(err) }, "alert cycle threw unexpectedly"));
   } catch (err) {
     logger.error({ err: String(err) }, "Scheduled full scrape cycle threw unexpectedly");
   } finally {
