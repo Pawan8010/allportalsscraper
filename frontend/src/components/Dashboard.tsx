@@ -189,6 +189,15 @@ export default function Dashboard() {
     setSelectedKeywords((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
   }
 
+  // Portal cards are an operational view; this creates the direct bridge to
+  // the searchable local database rather than making people manually find
+  // the same portal chip again in the Search tab.
+  function showPortalTenders(portalKey: string) {
+    setSelectedPortals([portalKey]);
+    setPage(1);
+    setTab("search");
+  }
+
   /** Explicit Enter/Search-button path: skip the debounce timer entirely. */
   function handleSearchNow() {
     setPage(1);
@@ -377,7 +386,13 @@ export default function Dashboard() {
       )}
 
       {tab === "portals" && (
-        <PortalStatusPanel portals={portals} loading={portalsLoading} error={portalsError} onScrapeTriggered={refreshAll} />
+        <PortalStatusPanel
+          portals={portals}
+          loading={portalsLoading}
+          error={portalsError}
+          onScrapeTriggered={refreshAll}
+          onViewTenders={showPortalTenders}
+        />
       )}
 
       {tab === "activity" && (

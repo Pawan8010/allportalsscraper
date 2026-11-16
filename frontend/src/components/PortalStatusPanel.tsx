@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, PlayCircle, CheckCircle2, XCircle, PauseCircle, HelpCircle, ExternalLink, Download, Ban } from "lucide-react";
+import { Loader2, PlayCircle, CheckCircle2, XCircle, PauseCircle, HelpCircle, ExternalLink, Download, Ban, List } from "lucide-react";
 import {
   PortalSummary,
   triggerScrapePortal,
@@ -16,6 +16,7 @@ interface Props {
   loading: boolean;
   error: string | null;
   onScrapeTriggered: () => void;
+  onViewTenders: (portalKey: string) => void;
 }
 
 function statusBadge(p: PortalSummary) {
@@ -31,7 +32,7 @@ function fmt(n: number) {
   return n.toLocaleString("en-IN");
 }
 
-export default function PortalStatusPanel({ portals, loading, error, onScrapeTriggered }: Props) {
+export default function PortalStatusPanel({ portals, loading, error, onScrapeTriggered, onViewTenders }: Props) {
   const toast = useToast();
   const [assistedSessions, setAssistedSessions] = useState<Record<string, AssistedSessionStatus>>({});
   const [assistedBusy, setAssistedBusy] = useState<string | null>(null);
@@ -244,6 +245,16 @@ export default function PortalStatusPanel({ portals, loading, error, onScrapeTri
             )}
 
             <div className="portal-card-actions">
+              <button
+                className="btn small secondary"
+                disabled={p.tenderCount === 0}
+                onClick={() => onViewTenders(p.key)}
+                title={p.tenderCount === 0 ? "No stored tenders from this portal yet" : `View ${fmt(p.tenderCount)} stored tenders`}
+              >
+                <List size={12} />
+                View tenders
+              </button>
+
               {p.enabled && (
                 <button className="btn small secondary" disabled={p.running} onClick={() => handleScrape(p.key)}>
                   {p.running ? <Loader2 size={12} className="spin" /> : <PlayCircle size={12} />}
