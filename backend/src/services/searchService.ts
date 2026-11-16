@@ -58,7 +58,7 @@ export async function findAlertMatches(keyword: string, limit = 50): Promise<{ r
     WHERE ("closingDate" IS NULL OR "closingDate" >= NOW())
       AND ${Prisma.join(tokenConditions, " AND ")}
     ORDER BY rank DESC, "publishedDate" DESC NULLS LAST
-    LIMIT ${Math.min(100, Math.max(1, limit))}
+    LIMIT ${Math.min(1_000, Math.max(1, limit))}
   `);
   const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
   return { rows: rows.map(({ total_count: _totalCount, ...row }) => row), total };

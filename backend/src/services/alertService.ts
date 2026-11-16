@@ -2,11 +2,14 @@ import { prisma } from "./prisma";
 import { findAlertMatches, SearchResultRow } from "./searchService";
 import { sendAlertEmail } from "./mailer";
 import { logger } from "../utils/logger";
+import { env } from "../config/env";
 
-// A cap per keyword per cycle -- this is a periodic digest, not a full
-// export; a genuinely huge backlog (e.g. right after subscribing) still
-// gets the most relevant/newest matches rather than everything at once.
-const MAX_MATCHES_PER_KEYWORD = 20;
+// This is deliberately high enough to include normal portal-wide matches,
+// while retaining a configurable guard against provider message-size limits
+// when someone first subscribes to a very broad partial keyword.
+function maxMatchesPerKeyword(): number {
+  return Math.min(1_000, Math.max(1, env.alertMaxMatchesPerKeyword));
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -52,7 +55,7 @@ export async function runAlertCycle(): Promise<{ usersNotified: number; tendersS
     try {
       const matched = new Map<string, SearchResultRow>();
       for (const keyword of sub.keywords) {
-        const { rows } = await findAlertMatches(keyword, MAX_MATCHES_PER_KEYWORD);
+        const { rows } = await findAlertMatches(keyword, maxMatchesPerKeyword());
         for (const row of rows) matched.set(`${row.portal}:${row.tenderId}`, row);
       }
       if (matched.size === 0) continue;

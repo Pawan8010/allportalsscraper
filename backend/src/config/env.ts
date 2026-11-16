@@ -87,6 +87,9 @@ export const env = {
 
   // --- Email alerts ---
   alertsEnabled: bool("ALERTS_ENABLED", false),
+  // A digest includes all newly matched tenders up to this high safety cap.
+  // It is configurable because mail providers impose message-size limits.
+  alertMaxMatchesPerKeyword: num("ALERT_MAX_MATCHES_PER_KEYWORD", 250),
   smtpHost: process.env.SMTP_HOST ?? "smtp.gmail.com",
   smtpPort: num("SMTP_PORT", 465),
   smtpUser: process.env.SMTP_USER ?? "",

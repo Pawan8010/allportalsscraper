@@ -124,7 +124,7 @@ describe("runAlertCycle", () => {
 
     await runAlertCycle();
 
-    expect(findAlertMatches).toHaveBeenCalledWith("therm", 20);
+    expect(findAlertMatches).toHaveBeenCalledWith("therm", 250);
     expect(sendAlertEmail).toHaveBeenCalledTimes(1);
   });
 });
