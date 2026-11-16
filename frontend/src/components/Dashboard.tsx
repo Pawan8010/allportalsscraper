@@ -46,6 +46,11 @@ export default function Dashboard() {
   const [selectedRelevance, setSelectedRelevance] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [minValue, setMinValue] = useState("");
+  const [maxValue, setMaxValue] = useState("");
 
   const [results, setResults] = useState<TenderRow[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -130,6 +135,11 @@ export default function Dashboard() {
           portals: selectedPortals.length ? selectedPortals : undefined,
           keywords: selectedKeywords.length ? selectedKeywords : undefined,
           relevance: selectedRelevance,
+          state: stateFilter || undefined,
+          category: categoryFilter || undefined,
+          department: departmentFilter || undefined,
+          minValue: minValue === "" ? undefined : Number(minValue),
+          maxValue: maxValue === "" ? undefined : Number(maxValue),
           page,
         },
         controller.signal
@@ -146,7 +156,7 @@ export default function Dashboard() {
     } finally {
       if (abortRef.current === controller) setSearchLoading(false);
     }
-  }, [debouncedQuery, selectedPortals, selectedKeywords, selectedRelevance, page]);
+  }, [debouncedQuery, selectedPortals, selectedKeywords, selectedRelevance, stateFilter, categoryFilter, departmentFilter, minValue, maxValue, page]);
 
   const refreshAll = useCallback(
     (opts: { silent?: boolean } = {}) => {
@@ -334,6 +344,17 @@ export default function Dashboard() {
                 setSelectedPortals(keys);
               }}
             />
+
+            <div style={{ marginTop: 12 }}>
+              <div className="section-title">Smart filters</div>
+              <div className="filter-grid">
+                <input className="input" placeholder="State / location" value={stateFilter} onChange={(e) => { setPage(1); setStateFilter(e.target.value); }} />
+                <input className="input" placeholder="Category / specification" value={categoryFilter} onChange={(e) => { setPage(1); setCategoryFilter(e.target.value); }} />
+                <input className="input" placeholder="Department / organisation" value={departmentFilter} onChange={(e) => { setPage(1); setDepartmentFilter(e.target.value); }} />
+                <input className="input" inputMode="decimal" placeholder="Minimum estimated value" value={minValue} onChange={(e) => { setPage(1); setMinValue(e.target.value); }} />
+                <input className="input" inputMode="decimal" placeholder="Maximum estimated value" value={maxValue} onChange={(e) => { setPage(1); setMaxValue(e.target.value); }} />
+              </div>
+            </div>
 
             <div style={{ marginTop: 12 }}>
               <div className="section-title">Relevance</div>

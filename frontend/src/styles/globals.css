@@ -959,7 +959,9 @@ tbody tr:hover { background: rgba(31, 182, 201, 0.05); }
 .relevance-filter span { color: var(--text-muted); font-size: 10.5px; line-height: 1.35; }
 .relevance-filter.active { border-color: var(--cyan-400); background: rgba(31, 182, 201, 0.11); box-shadow: inset 0 0 0 1px rgba(79, 211, 226, 0.08); }
 .relevance-filter.active strong { color: var(--cyan-200); }
+.filter-grid { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 8px; }
 @media (max-width: 850px) { .alert-settings-grid { grid-template-columns: 1fr; } .relevance-filter-grid { grid-template-columns: repeat(2, minmax(130px, 1fr)); } }
+@media (max-width: 850px) { .filter-grid { grid-template-columns: 1fr; } }
 .auth-motion-bg, .auth-grid, .auth-orbit, .auth-flow-line { position: absolute; inset: 0; pointer-events: none; }
 .auth-grid {
   opacity: 0.2;

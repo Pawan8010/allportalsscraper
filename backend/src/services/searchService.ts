@@ -9,6 +9,11 @@ export interface SearchParams {
   keywords?: string[];
   status?: string;
   relevance?: string;
+  state?: string;
+  category?: string;
+  department?: string;
+  minValue?: number;
+  maxValue?: number;
   page?: number;
   limit?: number;
   fromDate?: string;
@@ -117,6 +122,21 @@ export async function searchTenders(params: SearchParams) {
   }
   if (params.relevance) {
     conditions.push(Prisma.sql`relevance = ${params.relevance}`);
+  }
+  if (params.state) {
+    conditions.push(Prisma.sql`state ILIKE ${"%" + params.state.trim() + "%"}`);
+  }
+  if (params.category) {
+    conditions.push(Prisma.sql`category ILIKE ${"%" + params.category.trim() + "%"}`);
+  }
+  if (params.department) {
+    conditions.push(Prisma.sql`(department ILIKE ${"%" + params.department.trim() + "%"} OR organisation ILIKE ${"%" + params.department.trim() + "%"})`);
+  }
+  if (params.minValue !== undefined && Number.isFinite(params.minValue)) {
+    conditions.push(Prisma.sql`"estimatedValue" >= ${params.minValue}`);
+  }
+  if (params.maxValue !== undefined && Number.isFinite(params.maxValue)) {
+    conditions.push(Prisma.sql`"estimatedValue" <= ${params.maxValue}`);
   }
   if (params.fromDate) {
     conditions.push(Prisma.sql`"closingDate" >= ${new Date(params.fromDate)}`);

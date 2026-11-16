@@ -65,6 +65,11 @@ tendersRouter.get("/tenders/search", async (req, res, next) => {
     const keywords = parseListParam(req.query.keywords);
     const status = req.query.status ? String(req.query.status) : undefined;
     const relevance = req.query.relevance ? String(req.query.relevance) : undefined;
+    const state = req.query.state ? String(req.query.state) : undefined;
+    const category = req.query.category ? String(req.query.category) : undefined;
+    const department = req.query.department ? String(req.query.department) : undefined;
+    const minValue = req.query.minValue ? Number(req.query.minValue) : undefined;
+    const maxValue = req.query.maxValue ? Number(req.query.maxValue) : undefined;
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
     const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
@@ -83,6 +88,11 @@ tendersRouter.get("/tenders/search", async (req, res, next) => {
       keywords,
       status,
       relevance,
+      state,
+      category,
+      department,
+      minValue,
+      maxValue,
       page,
       limit,
       fromDate,

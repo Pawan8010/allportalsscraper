@@ -208,6 +208,11 @@ export function searchTenders(
     portals?: string[];
     keywords?: string[];
     relevance?: string;
+    state?: string;
+    category?: string;
+    department?: string;
+    minValue?: number;
+    maxValue?: number;
     page?: number;
     limit?: number;
   },
@@ -218,6 +223,11 @@ export function searchTenders(
   if (params.portals?.length) qs.set("portals", params.portals.join(","));
   if (params.keywords?.length) qs.set("keywords", params.keywords.join(","));
   if (params.relevance) qs.set("relevance", params.relevance);
+  if (params.state) qs.set("state", params.state);
+  if (params.category) qs.set("category", params.category);
+  if (params.department) qs.set("department", params.department);
+  if (params.minValue !== undefined) qs.set("minValue", String(params.minValue));
+  if (params.maxValue !== undefined) qs.set("maxValue", String(params.maxValue));
   qs.set("page", String(params.page ?? 1));
   qs.set("limit", String(params.limit ?? PAGE_SIZE));
   return apiFetch<SearchResponse>(`/api/tenders/search?${qs.toString()}`, { signal });
