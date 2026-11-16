@@ -45,10 +45,11 @@ export const env = {
   // fine. Full sweep: re-walks every page, so kept to once a day.
   scrapeCron: process.env.SCRAPE_CRON ?? "0 * * * *",
   fullScrapeCron: process.env.FULL_SCRAPE_CRON ?? "0 3 * * *",
-  // Kick off an incremental scrape immediately on startup rather than
-  // waiting for the first cron mark, so a freshly started backend doesn't
-  // sit with stale data for up to an hour before anything happens.
-  scrapeOnStartup: bool("SCRAPE_ON_STARTUP", true),
+  // A startup sweep competes with the API for CPU, database connections and
+  // outbound bandwidth. Keep a newly deployed dashboard responsive first;
+  // scheduled jobs and the explicit "Scrape" controls still collect every
+  // enabled portal. Deployments that have spare capacity can opt in.
+  scrapeOnStartup: bool("SCRAPE_ON_STARTUP", false),
 
   // GeM's public JSON API can be walked with real concurrency (unlike the
   // GePNIC portals, which are plain HTML pages on much smaller government
